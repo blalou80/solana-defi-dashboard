@@ -1,0 +1,22 @@
+# Solana DeFi Analytics Configuration
+# Copy this file to .config.yaml and edit as needed.
+
+# RPC endpoint for Solana (Helius free tier recommended)
+rpc_endpoint: "https://api.mainnet-beta.solana.com"
+
+# How often to poll for new data (seconds)
+polling_interval_sec: 15
+
+# Risk calculation window (days)
+risk_window_days: 30
+
+# List of token mints to track in portfolio
+portfolio_assets:
+  - "So11111111111111111111111111111111111111112"  # SOL
+  - "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC
+  # Add more as needed
+
+# Which alert channels are enabled (true/false)
+alert_channels:
+  telegram: false
+  discord: false
