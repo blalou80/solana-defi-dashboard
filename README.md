@@ -53,7 +53,7 @@ graph TD
     C[Jupiter API] --> B
     D[Orca/Raydium Programs] --> B
     B --> E[Risk Metrics Engine]
-    B --> F[Shared State (In-Memory)]
+    B --> F[Shared State]
     E --> G[Alerting System]
     F --> H[Streamlit Dashboard]
     G --> H
