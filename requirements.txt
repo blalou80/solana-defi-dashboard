@@ -1,0 +1,10 @@
+aiohttp
+solana
+solders
+pandas
+numpy
+streamlit
+python-dotenv
+pyyaml
+pytest
+pytest-asyncio
