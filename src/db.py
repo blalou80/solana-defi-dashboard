@@ -81,6 +81,30 @@ CREATE TABLE IF NOT EXISTS token_meta (
     fetched_ts TEXT NOT NULL,
     source TEXT NOT NULL                 -- 'metaplex+price-v3' etc.
 );
+CREATE TABLE IF NOT EXISTS alert_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,                  -- 'stop_loss' | 'boundary'
+    symbol TEXT,                         -- mint symbol for stop_loss
+    threshold REAL,
+    channel TEXT NOT NULL,
+    message_template TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    cooldown_min INTEGER NOT NULL DEFAULT 30,
+    created_ts TEXT NOT NULL,
+    source TEXT NOT NULL                 -- 'ui' | 'config'
+);
+CREATE TABLE IF NOT EXISTS quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    input_mint TEXT NOT NULL,
+    output_mint TEXT NOT NULL,
+    in_amount TEXT,                      -- raw smallest-unit strings from Jupiter
+    out_amount TEXT,
+    price_impact_pct REAL,
+    slippage_bps INTEGER,
+    route_labels TEXT,                   -- JSON array of AMM labels in the plan
+    source TEXT NOT NULL                 -- 'jupiter-swap-v1'
+);
 CREATE INDEX IF NOT EXISTS idx_snapshots_wallet_ts ON portfolio_snapshots (wallet, ts);
 CREATE INDEX IF NOT EXISTS idx_balances_snapshot ON token_balances (snapshot_id);
 """
@@ -353,3 +377,83 @@ def prune_position_history(conn: sqlite3.Connection, days: int = 7) -> int:
     cur = conn.execute("DELETE FROM positions WHERE ts < ?", (cutoff,))
     conn.commit()
     return cur.rowcount
+
+
+# --- alert rules (W4: durable, dashboard-managed) -------------------------
+
+def add_alert_rule(
+    conn: sqlite3.Connection,
+    type_: str,
+    channel: str,
+    symbol: Optional[str] = None,
+    threshold: Optional[float] = None,
+    message_template: Optional[str] = None,
+    enabled: bool = True,
+    cooldown_min: int = 30,
+    source: str = "ui",
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO alert_rules (type, symbol, threshold, channel,
+             message_template, enabled, cooldown_min, created_ts, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            type_, symbol, threshold, channel, message_template,
+            1 if enabled else 0, cooldown_min, _utcnow(), source,
+        ),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def delete_alert_rule(conn: sqlite3.Connection, rule_id: int) -> bool:
+    cur = conn.execute("DELETE FROM alert_rules WHERE id = ?", (rule_id,))
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def list_alert_rules(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM alert_rules ORDER BY created_ts"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# --- quote log (W4: every quote the product showed is auditable) ----------
+
+def record_quote(
+    conn: sqlite3.Connection,
+    quote_data: Dict[str, Any],
+    source: str = "jupiter-swap-v1",
+) -> int:
+    """Persist the raw fields of a Jupiter swap/v1 quote response."""
+    import json as _json
+
+    labels = [
+        (step.get("swapInfo") or {}).get("label", "unknown")
+        for step in quote_data.get("routePlan") or []
+    ]
+    cur = conn.execute(
+        """INSERT INTO quotes (ts, input_mint, output_mint, in_amount,
+             out_amount, price_impact_pct, slippage_bps, route_labels, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            _utcnow(),
+            quote_data.get("inputMint", ""),
+            quote_data.get("outputMint", ""),
+            str(quote_data.get("inAmount", "")),
+            str(quote_data.get("outAmount", "")),
+            float(quote_data.get("priceImpactPct", 0) or 0),
+            int(quote_data.get("slippageBps", 0) or 0),
+            _json.dumps(labels),
+            source,
+        ),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_quotes(conn: sqlite3.Connection, limit: int = 50) -> List[Dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM quotes ORDER BY ts DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]

@@ -15,10 +15,9 @@ from typing import Dict, List, Optional
 import aiohttp
 
 from ..config import load_config
-from ..db import last_alert_ts, latest_positions, log_alert
+from ..db import last_alert_ts, latest_positions, list_alert_rules, log_alert
 from ..models import Alert
 from ..services.market_data import KNOWN_TOKENS, get_usd_prices
-from ..state import get_state
 
 logger = logging.getLogger(__name__)
 
@@ -121,34 +120,56 @@ async def _live_prices_for(alerts: List[Alert], conn=None) -> Dict[str, Optional
 async def process_alerts(conn=None) -> None:
     """Check alert conditions against real data and dispatch notifications.
 
-    Alert definitions come from ``.config.yaml`` (``alerts:`` list) and the
-    in-process state (dashboard-added alerts). Boundary checks read the
-    persisted positions table (live pool ticks from the daemon). Every fired
-    or skipped alert is accounted for; nothing is evaluated against mock
-    prices, and each (type, target) respects a cooldown window.
+    W4: alert definitions are durable — they come from the ``alert_rules``
+    SQLite table (managed in the dashboard) plus ``.config.yaml``
+    (headless setups). The in-process session alerts are retired.
+    Boundary checks read only the persisted positions table (live pool
+    ticks from the daemon). Nothing is evaluated against mock prices, and
+    each rule's own cooldown window is honored per (type, target).
     """
     config = load_config()
-    cooldown = int(getattr(config, "alert_cooldown_minutes", DEFAULT_COOLDOWN_MIN))
-    definitions: List[Alert] = []
+    default_cooldown = int(
+        getattr(config, "alert_cooldown_minutes", DEFAULT_COOLDOWN_MIN)
+    )
+    definitions: List[tuple] = []  # (Alert, cooldown_min)
     for raw in getattr(config, "alerts", []) or []:
         definitions.append(
-            Alert(
-                id=f"cfg-{raw.get('symbol', 'unknown')}-{raw.get('threshold')}",
-                type=raw.get("type", "stop_loss"),
-                threshold=float(raw.get("threshold", 0)),
-                channel=raw.get("channel", "telegram"),
-                message_template=raw.get(
-                    "message_template", "{symbol} hit {threshold} (now {price})"
+            (
+                Alert(
+                    id=f"cfg-{raw.get('symbol', 'unknown')}-{raw.get('threshold')}",
+                    type=raw.get("type", "stop_loss"),
+                    threshold=float(raw.get("threshold", 0)),
+                    channel=raw.get("channel", "telegram"),
+                    message_template=raw.get(
+                        "message_template", "{symbol} hit {threshold} (now {price})"
+                    ),
+                    enabled=bool(raw.get("enabled", True)),
+                    threshold_symbol=raw.get("symbol"),
                 ),
-                enabled=bool(raw.get("enabled", True)),
-                threshold_symbol=raw.get("symbol"),
+                default_cooldown,
             )
         )
-    definitions.extend(get_state().alerts)
+    if conn is not None:
+        for rule in list_alert_rules(conn):
+            definitions.append(
+                (
+                    Alert(
+                        id=f"rule-{rule['id']}",
+                        type=rule["type"],
+                        threshold=float(rule["threshold"] or 0),
+                        channel=rule["channel"],
+                        message_template=rule["message_template"]
+                        or "{symbol} hit {threshold} (now {price})",
+                        enabled=bool(rule["enabled"]),
+                        threshold_symbol=rule["symbol"],
+                    ),
+                    int(rule["cooldown_min"]),
+                )
+            )
 
     fired_any = False
 
-    for alert in definitions:
+    for alert, cooldown in definitions:
         if not alert.enabled:
             continue
         if alert.type == "stop_loss":
@@ -189,9 +210,6 @@ async def process_alerts(conn=None) -> None:
             rows: List[Dict] = []
             if conn is not None:
                 rows = [p for p in latest_positions(conn) if not p["is_in_range"]]
-            for pos in get_state().positions:
-                if check_boundary_alert(pos):
-                    rows.append({"position_id": pos.id})
             for p in rows:
                 pid = p["position_id"]
                 target = f"boundary:{pid}"
