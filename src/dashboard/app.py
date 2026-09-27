@@ -90,25 +90,43 @@ if wallets:
                 "(`python -m src.main`) — the dashboard reads what it persists."
             )
             continue
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         with col1:
             st.metric("Total Value (USD)", f"${p.total_value_usd:,.2f}")
         with col2:
             st.metric(
-                "VaR (95%)",
+                "VaR 95% · intraday",
                 "unavailable" if p.var_95 is None else f"${p.var_95:,.2f}",
                 help=(
-                    f"Historical simulation over {p.snapshot_count} stored "
-                    "snapshots; needs ≥ 20 samples."
+                    "Historical simulation over period-to-period returns of "
+                    f"{p.snapshot_count} raw snapshots taken seconds apart — "
+                    "an INTRADAY risk figure, not a daily VaR. Needs ≥ 20 "
+                    "snapshots."
                 ),
             )
         with col3:
             st.metric(
-                "Sharpe Ratio",
+                "Sharpe · intraday",
                 "unavailable" if p.sharpe_ratio is None else f"{p.sharpe_ratio:.2f}",
-                help="From snapshot returns; needs ≥ 5 samples.",
+                help="From snapshot returns (seconds apart); needs ≥ 5 samples.",
             )
         with col4:
+            st.metric(
+                "VaR 95% · daily",
+                "unavailable" if p.var_95_daily is None else f"${p.var_95_daily:,.2f}",
+                help=(
+                    "Historical simulation over end-of-day value changes — "
+                    f"{p.daily_count} daily points stored (needs ≥ 5). This "
+                    "number becomes meaningful over days/weeks of history."
+                ),
+            )
+        with col5:
+            st.metric(
+                "Sharpe · daily",
+                "unavailable" if p.sharpe_daily is None else f"{p.sharpe_daily:.2f}",
+                help="From daily close values; needs ≥ 5 daily points.",
+            )
+        with col6:
             st.metric("Snapshots stored", p.snapshot_count)
         st.caption(
             f"Last update: {p.last_updated} · source: Solana RPC balances + "

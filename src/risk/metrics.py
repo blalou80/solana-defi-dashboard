@@ -13,14 +13,20 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from ..db import latest_snapshot, snapshot_value_history
+from ..db import (
+    daily_value_history,
+    latest_snapshot,
+    snapshot_value_history,
+)
 from ..models import Portfolio
 
 logger = logging.getLogger(__name__)
 
-# Minimum snapshots before VaR/Sharpe are reported at all.
+# Minimum snapshots before the intraday metrics are reported at all.
 MIN_SAMPLES_VAR = 20
 MIN_SAMPLES_SHARPE = 5
+# Minimum end-of-day points before daily metrics are reported.
+MIN_SAMPLES_DAILY = 5
 
 
 def calculate_var(values: List[float], confidence: float = 0.95) -> float:
@@ -115,4 +121,16 @@ def compute_portfolio_metrics(conn, wallet: str) -> Portfolio:
     else:
         portfolio.sharpe_ratio = None
     portfolio.snapshot_count = len(history)
+
+    # S3: daily-resolution metrics from the end-of-day rollup, clearly
+    # separated from the intraday snapshot metrics above.
+    daily = daily_value_history(conn, wallet)
+    if len(daily) >= MIN_SAMPLES_DAILY:
+        daily_returns = returns_from_values(daily)
+        if daily_returns:
+            portfolio.var_95_daily = (
+                abs(calculate_var(daily_returns, 0.95)) * portfolio.total_value_usd
+            )
+            portfolio.sharpe_daily = calculate_sharpe_ratio(daily_returns)
+    portfolio.daily_count = len(daily)
     return portfolio

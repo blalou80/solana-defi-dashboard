@@ -108,6 +108,13 @@ CREATE TABLE IF NOT EXISTS quotes (
     source TEXT NOT NULL,                -- 'jupiter-swap-v1'
     wallet TEXT                          -- S4: who the quote was for (NULL = anonymous)
 );
+CREATE TABLE IF NOT EXISTS daily_values (
+    wallet TEXT NOT NULL,
+    date TEXT NOT NULL,                  -- YYYY-MM-DD (UTC)
+    total_value_usd REAL NOT NULL,       -- last known value for that day
+    updated_ts TEXT NOT NULL,
+    PRIMARY KEY (wallet, date)
+);
 CREATE INDEX IF NOT EXISTS idx_snapshots_wallet_ts ON portfolio_snapshots (wallet, ts);
 CREATE INDEX IF NOT EXISTS idx_balances_snapshot ON token_balances (snapshot_id);
 """
@@ -195,8 +202,27 @@ def record_snapshot(
                 b.get("usd_value"),
             ),
         )
+    # S3: same-day rollup so daily-resolution metrics are cheap and honest
+    conn.execute(
+        """INSERT INTO daily_values (wallet, date, total_value_usd, updated_ts)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(wallet, date) DO UPDATE SET
+             total_value_usd=excluded.total_value_usd,
+             updated_ts=excluded.updated_ts""",
+        (wallet, ts[:10], total, ts),
+    )
     conn.commit()
     return snap_id
+
+
+def daily_value_history(conn: sqlite3.Connection, wallet: str) -> List[float]:
+    """Chronological end-of-day portfolio values (oldest first)."""
+    rows = conn.execute(
+        "SELECT total_value_usd FROM daily_values WHERE wallet = ? "
+        "ORDER BY date",
+        (wallet,),
+    ).fetchall()
+    return [float(r["total_value_usd"]) for r in rows]
 
 
 def latest_snapshot(conn: sqlite3.Connection, wallet: str) -> Optional[Dict[str, Any]]:

@@ -13,7 +13,8 @@ explicit *unavailable* state — it never interpolates, seeds, or fabricates.
 | Total portfolio value (USD) | stored snapshot (`portfolio_snapshots.total_value_usd`) | per tick | Σ of `usd_value` over *priced* balances only | `0.0` with unpriced rows visible in `token_balances` |
 | Token exposure breakdown | `token_balances` of latest snapshot | per tick | Σ `usd_value` grouped by symbol | rows with NULL price excluded |
 | VaR (95%) | snapshot value history | per tick after ≥ 20 snapshots | historical simulation: 5th percentile of period returns × latest total value (`risk/metrics.calculate_var`) | `None` → dashboard shows "unavailable" + snapshot count |
-| Sharpe ratio | snapshot value history | per tick after ≥ 5 snapshots | (mean − 0.02) / std of period returns (`calculate_sharpe_ratio`) | `None` → "unavailable" |
+| Sharpe · intraday | snapshot value history | per tick after ≥ 5 snapshots | (mean − 0.02) / std of period returns (`calculate_sharpe_ratio`) | `None` → "unavailable" |
+| Sharpe · daily | `daily_values` rollup | per tick after ≥ 5 daily points | same formula over daily returns | `None` → "unavailable" |
 | Swap quote (expected price, price impact, slippage bps) | Jupiter Swap API v1 (`lite-api.jup.ag/swap/v1/quote`) | on demand (CLI `quote`, dashboard Trade page) | `outAmount/inAmount` adjusted for known decimals; `priceImpactPct × 100`; `slippageBps / 100` | API error → exception surfaced in UI; unknown decimals → price `"unavailable"` |
 | Route table (per swap step) | same quote response `routePlan` | on demand | one row per step: AMM `label`, `percent` | empty `routePlan` → empty table, "No routes found." |
 | `fill_probability`, `volatility_estimate`, `gas_estimate` | **no source exists** | — | never invented: `None` / `0.0` = "not measured" | always shown as not measured |
