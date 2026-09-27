@@ -8,7 +8,8 @@ UI must render "unavailable (n samples)".
 """
 
 import logging
-from typing import Dict, List
+import math
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -55,6 +56,29 @@ def returns_from_values(values: List[float]) -> List[float]:
     with np.errstate(divide="ignore", invalid="ignore"):
         r = (curr - prev) / np.where(prev == 0, np.nan, prev)
     return [float(x) for x in r if np.isfinite(x)]
+
+
+def position_impermanent_loss(history: List[Dict]) -> Optional[float]:
+    """IL (%) since the position was FIRST OBSERVED, from stored ticks.
+
+    Entry-price proxy: the pool tick of the earliest history row converted
+    with tick_to_price; current: the latest row's tick. This is explicitly
+    "since first observation" — the daemon cannot know the real on-chain
+    entry price, and claiming one would be fabrication. Returns None with
+    fewer than 2 observations.
+    """
+    usable = [h for h in history if h.get("current_tick") is not None]
+    if len(usable) < 2:
+        return None
+    from ..engines.liquidity import tick_to_price
+
+    entry = tick_to_price(usable[0]["current_tick"])
+    current = tick_to_price(usable[-1]["current_tick"])
+    if entry <= 0:
+        return None
+    ratio = current / entry
+    il = 2 * math.sqrt(ratio) / (1 + ratio) - 1
+    return abs(il) * 100
 
 
 def compute_portfolio_metrics(conn, wallet: str) -> Portfolio:
