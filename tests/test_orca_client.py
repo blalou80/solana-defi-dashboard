@@ -66,6 +66,7 @@ def test_parse_position_drops_missing_pool_tick():
     assert parse_position(_raw_position(), {}) is None
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 async def test_live_pool_returns_real_tick():
     """Live integration: the endpoint must yield a plausible tick and the

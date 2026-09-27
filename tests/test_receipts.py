@@ -82,6 +82,7 @@ async def test_realized_slippage_unavailable_for_wrong_mint(tx):
         sl.get_transaction_receipt = orig
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 async def test_live_receipt_fetch():
     """Integration: fetch the captured signature's receipt live. Skips if

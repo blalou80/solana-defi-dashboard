@@ -26,3 +26,8 @@ wallet_addresses: []
 
 # SQLite file shared between daemon and dashboard (default: .data/dashboard.db)
 # db_path: ".data/dashboard.db"
+
+# For continuous polling, the public mainnet endpoint rate-limits you.
+# Get a free keyed endpoint (e.g. Helius: https://helius.dev) and paste it here:
+#   rpc_endpoint: "https://mainnet.helius-rpc.com/?api-key=YOUR_KEY"
+# The key lives in this file only — .config.yaml is gitignored.

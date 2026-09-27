@@ -128,6 +128,7 @@ def _acct(mint, raw, decimals):
 
 # --- live integration -------------------------------------------------------
 
+@pytest.mark.live
 @pytest.mark.asyncio
 async def test_live_resolve_usdc_and_jup(conn):
     try:

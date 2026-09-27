@@ -115,6 +115,13 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
+    # S2: the daemon writes while Streamlit reads from another process.
+    # WAL lets readers proceed during a writer's transaction, and the
+    # busy timeout absorbs the remaining write-lock collisions instead of
+    # surfacing "database is locked".
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")  # WAL-appropriate durability
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.executescript(_SCHEMA)
     # lightweight forward migration for pre-existing databases
     cols = {r[1] for r in conn.execute("PRAGMA table_info(alerts_log)")}

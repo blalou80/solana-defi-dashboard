@@ -35,17 +35,31 @@ TOKEN_PROGRAMS = (
 )
 
 
-@async_retry(max_attempts=3, delay=1.0, backoff=2.0)
 async def get_usd_prices(mints: List[str]) -> Dict[str, Optional[float]]:
     """USD price per mint from Jupiter Price API v3.
 
-    Returns {mint: price}; a mint missing from the API response maps to
+    Requests are chunked (the whale wallets W2's full-mint scan surfaces
+    can hold hundreds of tokens and blow the URL length limit — HTTP 414
+    observed live 2026-09-27). A mint missing from every response maps to
     None (unavailable) rather than a made-up number.
     """
     if not mints:
         return {}
+    out: Dict[str, Optional[float]] = {}
+    chunk = 25
+    async with aiohttp.ClientSession() as session:
+        for i in range(0, len(mints), chunk):
+            batch = mints[i : i + chunk]
+            out.update(await _get_usd_prices_batch(session, batch))
+    return out
+
+
+@async_retry(max_attempts=3, delay=1.0, backoff=2.0)
+async def _get_usd_prices_batch(
+    session: aiohttp.ClientSession, mints: List[str]
+) -> Dict[str, Optional[float]]:
     url = f"{PRICE_API_URL}?ids={','.join(mints)}"
-    async with aiohttp.ClientSession() as session, session.get(url) as resp:
+    async with session.get(url) as resp:
         if resp.status != 200:
             text = await resp.text()
             raise Exception(f"Price API error {resp.status}: {text[:200]}")

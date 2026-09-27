@@ -123,6 +123,7 @@ async def test_tick_polls_watchlisted_wallet_without_config(conn, monkeypatch):
     assert snap["total_value_usd"] == pytest.approx(600.0)
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 async def test_live_tick_for_watchlisted_wallet(conn):
     """Full real path: watchlist -> live RPC + Jupiter prices -> snapshot."""

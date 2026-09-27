@@ -15,6 +15,10 @@ jobs:
           cache: pip
       - run: pip install -r requirements.lock.txt
       - run: ruff check src tests
-      - run: python -m pytest tests/ -q
-        # live network tests (Jupiter/Orca/RPC) pytest.skip themselves when
-        # endpoints are unreachable; the import smoke test never touches net.
+      - run: python -m pytest tests/ -q -m "not live"
+        # Deterministic gate: offline suite only (import smoke, unit,
+        # fixture-backed, SQLite). Live network tests never gate merges.
+      - run: python -m pytest tests/ -q -m live
+        continue-on-error: true
+        # Informational: real Jupiter/Orca/RPC calls. Public endpoints
+        # rate-limit, so failures here are investigated, not blocking.

@@ -50,5 +50,8 @@ ignore = [
 "tests/*" = ["B017"]
 
 [tool.pytest.ini_options]
+markers = [
+    "live: hits real external endpoints (RPC, Jupiter, Orca); deselected by default in CI",
+]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
