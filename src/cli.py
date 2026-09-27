@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import logging
 
-from src.engines.slippage import compare_routes
+from src.engines.slippage import compute_slippage_metrics, get_quote
 from src.utils import setup_logging
 
 
@@ -15,8 +15,15 @@ def setup_cli_logging():
 
 async def async_main(args):
     if args.command == 'quote':
-        # Load config for RPC? Not needed for quote.
-        df = await compare_routes(args.token_in, args.token_out, args.amount)
+        # Quote is persisted (W4) so every number the tool showed is
+        # auditable later; DB failure must never break the quote itself.
+        quote = await get_quote(args.token_in, args.token_out, args.amount)
+        df = compute_slippage_metrics(quote)
+        try:
+            from src.db import get_connection, record_quote
+            record_quote(get_connection(), quote)
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"quote log failed: {e}")
         if df.empty:
             print("No routes found.")
         else:
