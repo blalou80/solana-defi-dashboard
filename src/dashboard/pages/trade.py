@@ -1,9 +1,10 @@
-import streamlit as st
-import pandas as pd
 import asyncio
+
+import pandas as pd
+import streamlit as st
+
 from src.engines.slippage import compare_routes
 from src.state import get_state
-from src.config import load_config
 
 st.set_page_config(page_title="Trade Slippage Analysis", layout="wide")
 

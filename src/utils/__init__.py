@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import sys
 import time
 from functools import wraps
-from typing import Callable, TypeVar, Any
+from typing import Callable, TypeVar
 
 T = TypeVar('T')
 
@@ -60,7 +61,3 @@ def async_retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0)
             raise RuntimeError("Retry exhausted")
         return wrapper
     return decorator
-
-# Note: async_retry requires asyncio import, we add import asyncio at top.
-# We'll add it.
-import asyncio  # noqa: E402

@@ -20,3 +20,9 @@ portfolio_assets:
 alert_channels:
   telegram: false
   discord: false
+# Public wallet addresses (read-only) the daemon polls for real balances.
+# Leave empty until you add your own.
+wallet_addresses: []
+
+# SQLite file shared between daemon and dashboard (default: .data/dashboard.db)
+# db_path: ".data/dashboard.db"
