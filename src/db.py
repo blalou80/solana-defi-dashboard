@@ -325,3 +325,31 @@ def latest_positions(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
            ORDER BY p.is_in_range ASC, p.ts DESC"""
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def position_history(
+    conn: sqlite3.Connection, position_id: str, limit: int = 2000
+) -> List[Dict[str, Any]]:
+    """Chronological (oldest first) rows for one position.
+
+    The ``positions`` table is itself the history: the daemon appends a
+    row every tick (UNIQUE(ts, position_id)), so no duplicate table is
+    needed — W3.1 reuses that design deliberately.
+    """
+    rows = conn.execute(
+        "SELECT * FROM positions WHERE position_id = ? "
+        "ORDER BY ts ASC LIMIT ?",
+        (position_id, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def prune_position_history(conn: sqlite3.Connection, days: int = 7) -> int:
+    """Delete position rows older than ``days`` (bounds DB growth at
+    15s cadence). Returns rows removed."""
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cur = conn.execute("DELETE FROM positions WHERE ts < ?", (cutoff,))
+    conn.commit()
+    return cur.rowcount

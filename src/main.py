@@ -11,7 +11,13 @@ import logging
 from typing import List
 
 from src.config import load_config
-from src.db import get_connection, list_watchlist, record_positions, record_snapshot
+from src.db import (
+    get_connection,
+    list_watchlist,
+    prune_position_history,
+    record_positions,
+    record_snapshot,
+)
 from src.risk.alerts import process_alerts
 from src.services.market_data import build_portfolio_balances
 from src.services.orca_client import fetch_positions_with_live_ticks
@@ -68,6 +74,10 @@ async def tick(config, conn) -> None:
             logger.error(
                 f"Orca position fetch failed for {wallet[:8]}…: {e}", exc_info=True
             )
+    # W3: bound history growth (7 days at polling cadence)
+    removed = prune_position_history(conn, days=7)
+    if removed:
+        logger.info(f"Pruned {removed} position-history rows older than 7d")
 
 
 async def background_loop():
