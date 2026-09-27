@@ -127,7 +127,7 @@ Individual commands once installed (`pip install -e .`):
 |---|---|
 | `defi-up` | daemon + Streamlit dashboard in one shot (http://localhost:8501) |
 | `defi-daemon` | data collector only: polls watched wallets, persists to `.data/dashboard.db` |
-| `defi-quote <mintIn> <mintOut> <amount>` | live Jupiter route table (also logged to the `quotes` table) |
+| `defi-quote quote <mintIn> <mintOut> <amount>` | live Jupiter route table (also logged to the `quotes` table) |
 | `streamlit run src/dashboard/app.py` | dashboard only (reads whatever the daemon persisted) |
 | `python -m pytest tests/ -q` | the full test suite |
 
