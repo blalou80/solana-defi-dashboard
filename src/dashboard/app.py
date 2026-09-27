@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from src.config import load_config
-from src.db import add_watch, conn_for, list_watchlist, remove_watch
+from src.db import add_watch, conn_for, list_watchlist, remove_watch, wallets_with_data
 from src.risk.metrics import compute_portfolio_metrics
 from src.utils import setup_logging
 from src.validation import validate_solana_address
@@ -75,8 +75,11 @@ if watched:
 # data renders as an explicit unavailable state.
 st.header("Portfolio Summary")
 
+# S6: show every wallet the store knows about — watchlist, config, or
+# simply having persisted data (a daemon-polled wallet must not vanish
+# from the summary when its watchlist entry is removed).
 wallets = [w["wallet"] for w in watched]
-for w in (config.wallet_addresses if config else []):
+for w in (config.wallet_addresses if config else []) + wallets_with_data(conn):
     if w not in wallets:
         wallets.append(w)
 

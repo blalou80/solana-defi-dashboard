@@ -127,3 +127,11 @@ def test_daily_metrics_need_five_daily_points(conn):
     p = compute_portfolio_metrics(conn, WALLET)
     assert p.daily_count == 5
     assert p.sharpe_daily is not None  # 5 daily points -> reportable
+
+
+def test_wallets_with_data_lists_snapshot_and_position_wallets(conn):
+    from src.db import wallets_with_data
+
+    assert wallets_with_data(conn) == []
+    record_snapshot(conn, WALLET, _bal(100.0), source="t")
+    assert wallets_with_data(conn) == [WALLET]

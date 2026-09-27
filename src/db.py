@@ -516,3 +516,13 @@ def list_quotes(conn: sqlite3.Connection, limit: int = 50) -> List[Dict[str, Any
         "SELECT * FROM quotes ORDER BY ts DESC LIMIT ?", (limit,)
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def wallets_with_data(conn: sqlite3.Connection) -> List[str]:
+    """Every wallet the store actually holds data for (S6: the summary
+    page must show what exists, not only what is currently watched)."""
+    rows = conn.execute(
+        "SELECT DISTINCT wallet FROM portfolio_snapshots "
+        "UNION SELECT DISTINCT wallet FROM positions WHERE wallet IS NOT NULL"
+    ).fetchall()
+    return [r["wallet"] for r in rows]
