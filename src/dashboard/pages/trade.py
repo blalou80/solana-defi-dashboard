@@ -3,7 +3,8 @@ import asyncio
 import pandas as pd
 import streamlit as st
 
-from src.db import get_connection, list_quotes, record_quote
+from src.config import load_config
+from src.db import conn_for, list_quotes, record_quote
 from src.engines.slippage import (
     compute_slippage_metrics,
     get_quote,
@@ -20,7 +21,11 @@ st.markdown(
 )
 
 RPC = "https://api.mainnet-beta.solana.com"
-conn = get_connection()
+try:
+    _cfg = load_config()
+except Exception:
+    _cfg = None
+conn = conn_for(_cfg)
 
 col1, col2, col3 = st.columns(3)
 with col1:

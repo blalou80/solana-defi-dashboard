@@ -12,7 +12,7 @@ from typing import List
 
 from src.config import load_config
 from src.db import (
-    get_connection,
+    conn_for,
     list_watchlist,
     prune_position_history,
     record_positions,
@@ -82,7 +82,7 @@ async def tick(config, conn) -> None:
 
 async def background_loop():
     config = load_config()
-    conn = get_connection(config.db_path)
+    conn = conn_for(config)
     logger.info(
         f"Starting background loop: interval={config.polling_interval_sec}s "
         f"wallets={len(resolve_wallets(config, conn))}"

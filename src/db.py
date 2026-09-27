@@ -124,6 +124,17 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     return conn
 
 
+def conn_for(config=None) -> sqlite3.Connection:
+    """THE way to open the shared database (S1: single entry point).
+
+    Every call site — daemon, CLI, dashboard pages — goes through here so
+    a custom ``db_path`` in .config.yaml can never split the store into
+    two databases again. ``config`` may be None (missing/invalid config
+    file) and falls back to env/default path.
+    """
+    return get_connection(getattr(config, "db_path", None) if config else None)
+
+
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 

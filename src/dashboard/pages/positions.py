@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from src.config import load_config
-from src.db import get_connection, latest_positions, position_history
+from src.db import conn_for, latest_positions, position_history
 from src.risk.metrics import position_impermanent_loss
 
 st.set_page_config(page_title="Liquidity Positions", layout="wide")
@@ -18,7 +18,7 @@ st.title("Concentrated Liquidity Positions")
 # guard that works in both modes.
 try:
     config = load_config()
-    conn = get_connection(config.db_path)
+    conn = conn_for(config)
     rows = latest_positions(conn)
 except Exception as e:
     st.error(f"Could not read position store: {e}")

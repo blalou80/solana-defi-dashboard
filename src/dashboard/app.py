@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from src.config import load_config
-from src.db import add_watch, get_connection, list_watchlist, remove_watch
+from src.db import add_watch, conn_for, list_watchlist, remove_watch
 from src.risk.metrics import compute_portfolio_metrics
 from src.utils import setup_logging
 from src.validation import validate_solana_address
@@ -25,7 +25,7 @@ try:
 except Exception as e:
     st.sidebar.error(f"Error loading config: {e}")
 
-conn = get_connection(config.db_path if config else None)
+conn = conn_for(config)
 
 # --- Watch a wallet (W1 onboarding) -------------------------------------
 st.header("Watch a wallet")

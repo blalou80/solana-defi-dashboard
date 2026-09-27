@@ -6,8 +6,8 @@ import streamlit as st
 from src.config import load_config
 from src.db import (
     add_alert_rule,
+    conn_for,
     delete_alert_rule,
-    get_connection,
     list_alert_rules,
 )
 
@@ -24,7 +24,7 @@ try:
 except Exception as e:
     st.warning(f"Could not load config (headless alerts still work): {e}")
 
-conn = get_connection(config.db_path if config else None)
+conn = conn_for(config)
 
 # --- create rule ----------------------------------------------------------
 st.subheader("Add a rule")

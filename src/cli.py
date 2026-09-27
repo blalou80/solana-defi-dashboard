@@ -20,8 +20,13 @@ async def async_main(args):
         quote = await get_quote(args.token_in, args.token_out, args.amount)
         df = compute_slippage_metrics(quote)
         try:
-            from src.db import get_connection, record_quote
-            record_quote(get_connection(), quote)
+            from src.config import load_config
+            from src.db import conn_for, record_quote
+            try:
+                cfg = load_config()
+            except Exception:
+                cfg = None
+            record_quote(conn_for(cfg), quote)
         except Exception as e:
             logging.getLogger(__name__).warning(f"quote log failed: {e}")
         if df.empty:

@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from src.config import load_config
-from src.db import get_connection
+from src.db import conn_for
 from src.main import tick
 from src.risk.alerts import process_alerts
 from src.utils import setup_logging
@@ -25,7 +25,7 @@ async def run_analytics_cycle():
     """Run a single analytics update cycle."""
     try:
         config = load_config()
-        conn = get_connection(config.db_path)
+        conn = conn_for(config)
         logger.info("Starting analytics collection cycle")
         await tick(config, conn)
         await process_alerts(conn)
