@@ -4,16 +4,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Streamlit](https://img.shields.io/badge/dashboard-streamlit-FF4B4B.svg)](https://streamlit.io/)
 
-A production-ready Python toolkit for real-time DeFi analytics and risk management on Solana, featuring live slippage analysis, concentrated liquidity monitoring, and an interactive Streamlit dashboard.
+A Python toolkit for DeFi analytics and risk management on Solana. As of 2026-09-27 (Phases 0–4 complete): real Jupiter Swap API v1 quotes, real RPC wallet balances and Orca Whirlpool positions (live pool ticks) persisted to SQLite, history-driven VaR/Sharpe that show "unavailable" until enough real samples exist, on-chain receipt parsing for realized slippage, and Telegram/Discord alerts that fire on live prices with per-target cooldowns. Fee harvesting, transaction building/simulation and trade execution remain **not implemented** — those functions raise explicit errors instead of returning mock data. `METRICS.md` is the ground-truth table for every displayed value.
 
 ## ✨ Features
 
-- **Real-Time Slippage Engine**: Fetch live quotes from Jupiter Aggregator, compare swap routes, and compute expected vs. realized slippage with price impact analysis.
-- **Concentrated Liquidity Monitor**: Track Orca Whirlpool and Raydium CL positions, calculate impermanent loss, trading fees, and net yield with out-of-range alerts.
-- **Risk Dashboard**: Interactive UI showing portfolio value, token exposure, VaR, Sharpe ratio, and automated alerts via Telegram/Discord.
-- **Async-First Architecture**: Built with `asyncio` and `aiohttp` for high-performance, non-blocking API calls.
+- **Real-Time Slippage Engine**: Fetch live quotes from Jupiter Aggregator (Swap API v1), compute expected price, price impact, and slippage from real route plans.
+- **Concentrated Liquidity Monitor**: Orca Whirlpool positions are ingested every daemon tick via the live Orca v2 API, with the pool's real `tickCurrentIndex` deciding in/out-of-range. IL, net-yield and range math are implemented and tested. Raydium CLMM ingestion is not connected (no mock fallback).
+- **Risk Dashboard**: Interactive UI showing portfolio value, token exposure, VaR, Sharpe ratio, and automated alerts via Telegram/Discord. VaR/Sharpe require ≥20/≥5 stored snapshots and display "unavailable" until real history exists.
+- **SQLite Shared State**: The daemon writes snapshots to `.data/dashboard.db`; the dashboard reads them — one persisted source of truth across processes.
+- **Async-First Architecture**: Built with `asyncio` and `aiohttp` with working async retry/backoff on all network calls.
 - **Modular & Extensible**: Clean separation of concerns with well-defined interfaces between data engines, risk calculations, and presentation layer.
-- **Offline Simulation Mode**: Includes deterministic mock data generators for development and testing without RPC dependencies.
 
 ## 📊 DeFi Calculation Capabilities
 
@@ -29,7 +29,7 @@ def compute_impermanent_loss(price_current: float, price_entry: float) -> float:
 ```
 
 ### Slippage Analysis
-- Fetches route data from Jupiter API v6
+- Fetches route data from Jupiter Swap API v1 (`lite-api.jup.ag/swap/v1`)
 - Computes price impact percentage and slippage basis points
 - Compares multiple routes for optimal execution
 - Tracks realized slippage from on-chain transaction receipts
@@ -87,18 +87,20 @@ graph TD
 
 ## 📈 Test Coverage
 
-The project includes a comprehensive test suite:
-- **Unit Tests**: Testing calculation functions in isolation (IL, slippage, yield)
-- **Integration Tests**: Testing engine interactions with mocked external APIs
-- **Contract Tests**: Validating API response schemas against real endpoints
-- **End-to-End Tests**: Simulating full data flow from API to dashboard display
-
 Run tests with:
 ```bash
-pytest tests/ -v
+pytest tests/ -q        # 83 tests
+ruff check src tests    # lint gate (config in pyproject.toml)
 ```
 
-Current coverage: ~85% (calculations and core logic fully tested)
+Suite contents (all passing as of 2026-09-27):
+- **Import smoke test** — every module under `src/` must import (43 cases; guards the failure class that once left half the codebase dead)
+- **Unit** — IL, slippage metric parsing (real Jupiter v1 fixture), VaR/Sharpe, retry semantics
+- **Integration (live network, self-skipping)** — Jupiter quote, Orca pool tick, on-chain receipt fetch
+- **Persistence** — SQLite snapshot roundtrip, metrics refusing low history, alert cooldowns
+- **End-to-end alerts** — config alert → live price → webhook sink → `delivered=1` → cooldown
+
+The former `tests/integration` / `tests/contract` directories are empty placeholders; the claims about them were removed rather than kept aspirational.
 
 ## 🚀 Step-by-Step Setup Guide
 

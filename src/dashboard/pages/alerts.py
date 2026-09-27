@@ -1,15 +1,35 @@
-import streamlit as st
 import uuid
-from src.state import get_state
+
+import streamlit as st
+
+from src.config import load_config
+from src.db import get_connection
 from src.models import Alert
+from src.state import get_state
 
 st.set_page_config(page_title="Alert Configuration", layout="wide")
 
 st.title("Alert Configuration")
 
-# Display existing alerts
+# Definitions from .config.yaml (shared across processes) + session-added
 state = get_state()
-alerts = state.alerts
+alerts = list(state.alerts)
+try:
+    config = load_config()
+    for raw in getattr(config, "alerts", []) or []:
+        alerts.append(
+            Alert(
+                id=f"cfg-{raw.get('symbol', '?')}-{raw.get('threshold')}",
+                type=raw.get("type", "stop_loss"),
+                threshold=float(raw.get("threshold", 0)),
+                channel=raw.get("channel", "telegram"),
+                message_template=raw.get("message_template", "Alert triggered!"),
+                enabled=bool(raw.get("enabled", True)),
+                threshold_symbol=raw.get("symbol"),
+            )
+        )
+except Exception as e:
+    st.warning(f"Could not load alert definitions from config: {e}")
 
 st.subheader("Current Alerts")
 if alerts:
@@ -24,10 +44,30 @@ if alerts:
         with col4:
             st.write("Enabled" if alert.enabled else "Disabled")
 else:
-    st.info("No alerts configured.")
+    st.info(
+        "No alerts configured. Add an `alerts:` list to `.config.yaml` "
+        "(type: stop_loss, symbol: SOL, threshold: 100, channel: telegram) "
+        "so the daemon can act on them."
+    )
 
-# Add new alert
-st.subheader("Add New Alert")
+# Fired/skipped alert history, persisted by the daemon
+try:
+    conn = get_connection(config.db_path if config else None)
+    log_rows = conn.execute(
+        "SELECT ts, type, message, channel, delivered FROM alerts_log "
+        "ORDER BY ts DESC LIMIT 100"
+    ).fetchall()
+    st.subheader("Alert Log (persisted)")
+    if log_rows:
+        import pandas as pd
+        st.dataframe(pd.DataFrame([dict(r) for r in log_rows]), use_container_width=True)
+    else:
+        st.write("No alerts fired or skipped yet.")
+except Exception as e:
+    st.error(f"Could not read alert log: {e}")
+
+# Add new alert (this session only — daemon acts on config-defined alerts)
+st.subheader("Add New Alert (this dashboard session)")
 with st.form("add_alert"):
     alert_type = st.selectbox("Alert Type", ["stop_loss", "boundary", "anomaly"])
     threshold = st.number_input("Threshold", value=0.0)
@@ -51,8 +91,9 @@ with st.form("add_alert"):
 st.subheader("Test Alert")
 if st.button("Send Test Alert"):
     # Use send_alert from risk.alerts
-    from src.risk.alerts import send_alert
     import asyncio
+
+    from src.risk.alerts import send_alert
     result = asyncio.run(send_alert("Test alert from dashboard", "telegram"))
     if result:
         st.success("Test alert sent!")

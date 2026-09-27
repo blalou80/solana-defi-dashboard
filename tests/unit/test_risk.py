@@ -1,6 +1,5 @@
-import pytest
-import numpy as np
-from src.risk.metrics import calculate_var, calculate_sharpe_ratio
+from src.risk.metrics import calculate_sharpe_ratio, calculate_var
+
 
 def test_calculate_var():
     returns = [0.01, -0.02, 0.03, -0.01, 0.02, -0.03, 0.04, -0.05, 0.01, -0.02]

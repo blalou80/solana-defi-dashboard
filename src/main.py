@@ -1,46 +1,77 @@
 #!/usr/bin/env python3
 """
 Background daemon for Solana DeFi Analytics.
-Runs polling loop to update positions and portfolio metrics.
+Polls real market data (Solana RPC + Jupiter Price v3) for configured
+wallets and persists snapshots to SQLite, which the Streamlit dashboard
+reads. No mock data: if a fetch fails, the previous snapshot stands and
+the error is logged.
 """
 import asyncio
 import logging
-import sys
+
 from src.config import load_config
-from src.state import get_state
-from src.engines.liquidity import update_positions
-from src.risk.metrics import update_portfolio_metrics
+from src.db import get_connection, record_positions, record_snapshot
 from src.risk.alerts import process_alerts
+from src.services.market_data import build_portfolio_balances
+from src.services.orca_client import fetch_positions_with_live_ticks
 from src.utils import setup_logging
 
 logger = logging.getLogger(__name__)
 
-async def background_loop():
-    """Main async loop that polls and updates data."""
-    config = load_config()
-    logger.info(f"Starting background loop with interval {config.polling_interval_sec}s")
-    # For MVP, we'll use a fixed owner and pool list; in production these come from config.
-    owner = "mock_owner"  # would be user-provided
-    pool_ids = ["orca_pool_1", "orca_pool_2"]  # from config
 
-    while True:
+async def tick(config, conn) -> None:
+    """One polling cycle: fetch + persist real balances for every wallet."""
+    wallets = config.wallet_addresses
+    if not wallets:
+        logger.warning(
+            "No wallet_addresses configured — nothing to poll. "
+            "Add wallets to .config.yaml to persist real snapshots."
+        )
+        return
+    for wallet in wallets:
         try:
-            logger.debug("Updating positions...")
-            positions = await update_positions(owner, config.rpc_endpoint, pool_ids)
-            logger.debug(f"Updated {len(positions)} positions")
-
-            # Update portfolio metrics
-            update_portfolio_metrics()
-            logger.debug("Updated portfolio metrics")
-
-            # Process alerts
-            await process_alerts()
-            logger.debug("Processed alerts")
-
+            balances = await build_portfolio_balances(wallet, config.rpc_endpoint)
+            snap_id = record_snapshot(
+                conn,
+                wallet=wallet,
+                balances=balances,
+                source="solana-rpc+jupiter-price-v3",
+            )
+            logger.info(f"Snapshot #{snap_id} stored for {wallet[:8]}…")
         except Exception as e:
-            logger.error(f"Error in background loop: {e}", exc_info=True)
+            # Honest failure: log and keep the last real snapshot.
+            logger.error(f"Poll failed for {wallet[:8]}…: {e}", exc_info=True)
+        try:
+            positions = await fetch_positions_with_live_ticks(wallet)
+            if positions:
+                stored = record_positions(
+                    conn, positions, source="orca-api-v2"
+                )
+                logger.info(
+                    f"Positions stored for {wallet[:8]}…: {stored} "
+                    f"({len(positions)} parsed)"
+                )
+        except Exception as e:
+            logger.error(
+                f"Orca position fetch failed for {wallet[:8]}…: {e}", exc_info=True
+            )
 
+
+async def background_loop():
+    config = load_config()
+    conn = get_connection(config.db_path)
+    logger.info(
+        f"Starting background loop: interval={config.polling_interval_sec}s "
+        f"wallets={len(config.wallet_addresses)}"
+    )
+    while True:
+        await tick(config, conn)
+        try:
+            await process_alerts(conn)
+        except Exception as e:
+            logger.error(f"Alert processing failed: {e}", exc_info=True)
         await asyncio.sleep(config.polling_interval_sec)
+
 
 def main():
     setup_logging(logging.INFO)
@@ -49,6 +80,7 @@ def main():
         asyncio.run(background_loop())
     except KeyboardInterrupt:
         logger.info("Shutting down daemon")
+
 
 if __name__ == "__main__":
     main()

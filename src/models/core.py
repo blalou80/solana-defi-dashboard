@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import Dict, List, Optional
+
 
 @dataclass
 class Trade:
@@ -34,8 +35,10 @@ class LiquidityPosition:
 class Portfolio:
     total_value_usd: float = 0.0
     token_exposures: Dict[str, float] = field(default_factory=dict)
-    var_95: float = 0.0
-    sharpe_ratio: float = 0.0
+    # None = not enough real history to compute; never a fabricated number.
+    var_95: Optional[float] = None
+    sharpe_ratio: Optional[float] = None
+    snapshot_count: int = 0  # how many real snapshots back the metrics
     positions: List[LiquidityPosition] = field(default_factory=list)
     last_updated: datetime = field(default_factory=datetime.now)
 
@@ -47,9 +50,4 @@ class Alert:
     channel: str  # "telegram", "discord"
     message_template: str
     enabled: bool = True
-
-# Config is already defined in config.py; we re-export from there for convenience.
-# We'll import Config from config in other modules.
-
-# Re-export Config from config module if needed.
-from src.config import Config  # noqa: F401
+    threshold_symbol: Optional[str] = None  # e.g. "SOL" for stop_loss

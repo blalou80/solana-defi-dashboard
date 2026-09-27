@@ -1,10 +1,16 @@
 """
 Shared in-memory state for the application.
 Updated by background tasks, read by Streamlit and CLI.
+
+NOTE: this is process-local. Cross-process sharing goes through the
+SQLite store in :mod:`src.db` — see the Phase 0 persistence fix.
 """
-from typing import Dict, List, Optional
 from dataclasses import dataclass, field
-from .models import Portfolio, LiquidityPosition, Alert, Trade
+from datetime import datetime
+from typing import Dict, List, Optional
+
+from .models import Alert, LiquidityPosition, Portfolio, Trade
+
 
 @dataclass
 class AppState:
@@ -45,5 +51,3 @@ def add_position(position: LiquidityPosition):
             _state.positions[i] = position
             return
     _state.positions.append(position)
-
-from datetime import datetime  # noqa: E402

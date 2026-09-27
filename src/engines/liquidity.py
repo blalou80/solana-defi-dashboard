@@ -1,17 +1,15 @@
 """Concentrated liquidity monitoring and PnL calculations for Orca/Raydium."""
 
-import asyncio
 import logging
-from typing import Dict, List, Optional, Tuple
-from decimal import Decimal
-import aiohttp
+import math
+from typing import Dict, List, Optional
+
 from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey as PublicKey
-import math
 
-from ..utils import async_retry
 from ..models import LiquidityPosition
-from ..state import get_state, add_position
+from ..state import add_position
+from ..utils import async_retry
 
 logger = logging.getLogger(__name__)
 
@@ -46,45 +44,31 @@ async def get_transaction(tx_hash: str, rpc_url: str) -> Dict:
 async def fetch_orca_whirlpool_position(position_id: str, rpc_url: str) -> Optional[LiquidityPosition]:
     """
     Fetch a specific Orca Whirlpool position from RPC.
-    This is a stub; actual parsing would depend on Orca's program data.
+
+    Not implemented: on-chain Whirlpool account decoding is Phase 1 scope.
+    Returns None (explicit unavailable) instead of the mock position this
+    function used to fabricate.
     """
-    logger.info(f"Fetching position {position_id} from {rpc_url}")
-    # For MVP, return a mock position.
-    mock_position = LiquidityPosition(
-        id=position_id,
-        pool_id="orca_pool_1",
-        owner="mock_owner",
-        tick_lower=-100,
-        tick_upper=100,
-        current_tick=0,
-        liquidity=1000.0,
-        fees_earned=10.0,
-        impermanent_loss=5.0,
-        net_yield=20.0
+    logger.warning(
+        f"fetch_orca_whirlpool_position({position_id}): on-chain ingestion "
+        "not implemented (Phase 1) — returning None, not mock data."
     )
-    return mock_position
+    return None
+
 
 async def fetch_all_positions(owner: str, rpc_url: str, pool_ids: List[str]) -> List[LiquidityPosition]:
     """
     Fetch all positions for a given owner across multiple pools.
-    For MVP, returns a list of mock positions.
+
+    Not implemented: the previous version returned fabricated positions.
+    Until Phase 1 on-chain ingestion lands, this returns an empty list and
+    the UI shows "no position ingestion connected".
     """
-    positions = []
-    for i, pool_id in enumerate(pool_ids):
-        pos = LiquidityPosition(
-            id=f"pos_{i}",
-            pool_id=pool_id,
-            owner=owner,
-            tick_lower=-50 + i*10,
-            tick_upper=50 + i*10,
-            current_tick=0,
-            liquidity=500.0 * (i+1),
-            fees_earned=2.0 * (i+1),
-            impermanent_loss=1.0 * (i+1),
-            net_yield=5.0 * (i+1)
-        )
-        positions.append(pos)
-    return positions
+    logger.warning(
+        "fetch_all_positions: no real position ingestion implemented yet "
+        "(Phase 1). Returning empty list — no mock positions."
+    )
+    return []
 
 def compute_impermanent_loss(price_current: float, price_entry: float) -> float:
     """Compute impermanent loss percentage."""

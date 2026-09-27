@@ -2,14 +2,13 @@
 """
 CLI entry point for Solana DeFi Analytics.
 """
-import asyncio
-import sys
 import argparse
+import asyncio
 import logging
-from src.config import load_config
+
 from src.engines.slippage import compare_routes
-from src.state import get_state
 from src.utils import setup_logging
+
 
 def setup_cli_logging():
     setup_logging(logging.INFO)
