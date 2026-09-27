@@ -9,7 +9,7 @@ A Python toolkit for DeFi analytics and risk management on Solana. As of 2026-09
 ## ✨ Features
 
 - **Real-Time Slippage Engine**: Fetch live quotes from Jupiter Aggregator (Swap API v1), compute expected price, price impact, and slippage from real route plans.
-- **Concentrated Liquidity Monitor**: Orca Whirlpool positions are ingested every daemon tick via the live Orca v2 API, with the pool's real `tickCurrentIndex` deciding in/out-of-range. IL, net-yield and range math are implemented and tested. Raydium CLMM ingestion is not connected (no mock fallback).
+- **Concentrated Liquidity Monitor**: Orca Whirlpool positions are ingested every daemon tick via the live Orca v2 API, with the pool's real `tickCurrentIndex` deciding in/out-of-range. **Status: awaiting live verification** — the path is tested against the real API envelope but has not yet rendered a wallet that holds actual positions (sprint S5); the dashboard shows an explicit pending banner until it does. IL, net-yield and range math are implemented and tested. Raydium CLMM ingestion is not connected (no mock fallback).
 - **Risk Dashboard**: Interactive UI showing portfolio value, token exposure, VaR, Sharpe ratio, and automated alerts via Telegram/Discord. VaR/Sharpe require ≥20/≥5 stored snapshots and display "unavailable" until real history exists.
 - **SQLite Shared State**: The daemon writes snapshots to `.data/dashboard.db`; the dashboard reads them — one persisted source of truth across processes.
 - **Async-First Architecture**: Built with `asyncio` and `aiohttp` with working async retry/backoff on all network calls.
