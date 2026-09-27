@@ -23,13 +23,6 @@ class Config:
     alerts: List[Dict] = field(default_factory=list)
     # SQLite file shared between daemon and dashboard.
     db_path: Optional[str] = None
-    # Enhanced features configuration
-    nlp_model: str = "en_core_web_sm"
-    il_prediction_model: str = "random_forest"
-    api_rate_limit_per_sec: float = 5.0
-    cache_ttl_sec: int = 30
-    simulation_enabled: bool = True
-    ai_insights_enabled: bool = True
 
 
 def load_config(config_path: str = ".config.yaml", env_path: str = ".env") -> Config:
@@ -55,12 +48,6 @@ def load_config(config_path: str = ".config.yaml", env_path: str = ".env") -> Co
     alert_cooldown_minutes = data.get('alert_cooldown_minutes', 30)
 
     # Enhanced features with defaults
-    nlp_model = data.get('nlp_model', 'en_core_web_sm')
-    il_prediction_model = data.get('il_prediction_model', 'random_forest')
-    api_rate_limit_per_sec = data.get('api_rate_limit_per_sec', 5.0)
-    cache_ttl_sec = data.get('cache_ttl_sec', 30)
-    simulation_enabled = data.get('simulation_enabled', True)
-    ai_insights_enabled = data.get('ai_insights_enabled', True)
 
     return Config(
         rpc_endpoint=rpc_endpoint,
@@ -72,12 +59,6 @@ def load_config(config_path: str = ".config.yaml", env_path: str = ".env") -> Co
         db_path=db_path,
         alerts=alerts,
         alert_cooldown_minutes=alert_cooldown_minutes,
-        nlp_model=nlp_model,
-        il_prediction_model=il_prediction_model,
-        api_rate_limit_per_sec=api_rate_limit_per_sec,
-        cache_ttl_sec=cache_ttl_sec,
-        simulation_enabled=simulation_enabled,
-        ai_insights_enabled=ai_insights_enabled
     )
 
 
@@ -93,12 +74,6 @@ def save_config(config: Config, config_path: str = ".config.yaml") -> None:
         'db_path': config.db_path,
         'alerts': config.alerts,
         'alert_cooldown_minutes': config.alert_cooldown_minutes,
-        'nlp_model': config.nlp_model,
-        'il_prediction_model': config.il_prediction_model,
-        'api_rate_limit_per_sec': config.api_rate_limit_per_sec,
-        'cache_ttl_sec': config.cache_ttl_sec,
-        'simulation_enabled': config.simulation_enabled,
-        'ai_insights_enabled': config.ai_insights_enabled
     }
 
     with open(config_path, 'w') as f:
