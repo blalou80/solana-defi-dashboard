@@ -102,71 +102,39 @@ Suite contents (all passing as of 2026-09-27):
 
 The former `tests/integration` / `tests/contract` directories are empty placeholders; the claims about them were removed rather than kept aspirational.
 
-## 🚀 Step-by-Step Setup Guide
+## 🚀 Quickstart
 
 ### Prerequisites
-- Python 3.11 or higher
-- Git (for version control)
-- Solana RPC endpoint (public endpoints work, but dedicated RPC like Helius or QuickNode recommended for production)
-- (Optional) Telegram Bot token or Discord Webhook URL for alerts
+- Python 3.12+ (pinned deps require it)
+- Solana RPC endpoint (public mainnet works; a keyed Helius/QuickNode endpoint is recommended for continuous polling)
+- (Optional) Telegram/Discord webhook URLs for alerts
 
-### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/solana-defi-dashboard.git
+git clone https://github.com/blalou80/solana-defi-dashboard.git
 cd solana-defi-dashboard
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.lock.txt && pip install -e .
+
+cp .config.yaml.example .config.yaml   # set rpc_endpoint; watch wallets from the UI
+cp .env.example .env                   # optional: webhook URLs
+
+defi-up        # daemon + dashboard together, Ctrl-C stops both
 ```
 
-### 2. Environment Setup
-```bash
-# Create virtual environment
-python -m venv .venv
+Individual commands once installed (`pip install -e .`):
 
-# Activate it
-# On Linux/macOS:
-source .venv/bin/activate
-# On Windows:
-# .venv\Scripts\activate
+| Command | What it does |
+|---|---|
+| `defi-up` | daemon + Streamlit dashboard in one shot (http://localhost:8501) |
+| `defi-daemon` | data collector only: polls watched wallets, persists to `.data/dashboard.db` |
+| `defi-quote <mintIn> <mintOut> <amount>` | live Jupiter route table (also logged to the `quotes` table) |
+| `streamlit run src/dashboard/app.py` | dashboard only (reads whatever the daemon persisted) |
+| `python -m pytest tests/ -q` | the full test suite |
 
-# Upgrade pip
-pip install --upgrade pip
-```
-
-### 3. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure the Application
-```bash
-# Copy example configuration files
-cp .config.yaml.example .config.yaml
-cp .env.example .env
-
-# Edit .config.yaml to set your RPC endpoint and preferred assets
-# Edit .env to add alerting credentials (Telegram bot token, Discord webhook, etc.)
-```
-
-### 5. Launch the Application
-#### Option A: Development Mode (Recommended for testing)
-```bash
-# Start the background data updater in one terminal
-python -m src.main --daemon
-
-# In another terminal, launch the Streamlit dashboard
-streamlit run src/dashboard/app.py
-```
-
-#### Option B: Production Deployment
-```bash
-# Run both services with a process manager like systemd, supervisord, or Docker
-# See DEPLOYMENT.md for detailed instructions
-```
-
-### 6. Access the Dashboard
-Open your web browser and navigate to:
-```
-http://localhost:8501
-```
+### Production notes
+SQLite needs a disk — deploy the daemon and dashboard on one host with a
+persistent volume (small VPS, Fly.io volume, or a systemd pair). There is
+no hosted deployment yet; do not put this on serverless.
 
 ## � kml Configuration Files
 
