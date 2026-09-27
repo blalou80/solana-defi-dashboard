@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from src.config import load_config
-from src.db import conn_for, list_quotes, record_quote
+from src.db import conn_for, list_quotes, list_watchlist, record_quote
 from src.engines.slippage import (
     compute_slippage_metrics,
     get_quote,
@@ -27,7 +27,8 @@ except Exception:
     _cfg = None
 conn = conn_for(_cfg)
 
-col1, col2, col3 = st.columns(3)
+watched = list_watchlist(conn)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     token_in = st.text_input(
         "Token In (mint address)",
@@ -42,6 +43,13 @@ with col3:
     amount = st.number_input(
         "Amount (in natural units)", min_value=0.0, value=1.0, step=0.1
     )
+with col4:
+    quote_wallet = st.selectbox(
+        "Quote for wallet (optional)",
+        [""] + [w["wallet"] for w in watched],
+        format_func=lambda w: "— anonymous —" if w == "" else (w[:8] + "…" + w[-4:]),
+        help="S4: attributes the logged quote to a watched wallet.",
+    )
 
 if st.button("Get Quote"):
     with st.spinner("Fetching quote..."):
@@ -49,7 +57,7 @@ if st.button("Get Quote"):
             quote = asyncio.run(get_quote(token_in, token_out, amount))
             df = compute_slippage_metrics(quote)
             try:
-                record_quote(conn, quote)
+                record_quote(conn, quote, wallet=quote_wallet or None)
             except Exception as e:
                 st.warning(f"Quote shown, but logging failed: {e}")
             if df.empty:

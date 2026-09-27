@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS positions (
     impermanent_loss REAL,
     is_in_range INTEGER,
     source TEXT NOT NULL,
+    wallet TEXT,                         -- S4: owner wallet (from the watchlist poll)
     UNIQUE (ts, position_id)
 );
 CREATE TABLE IF NOT EXISTS alerts_log (
@@ -91,7 +92,8 @@ CREATE TABLE IF NOT EXISTS alert_rules (
     enabled INTEGER NOT NULL DEFAULT 1,
     cooldown_min INTEGER NOT NULL DEFAULT 30,
     created_ts TEXT NOT NULL,
-    source TEXT NOT NULL                 -- 'ui' | 'config'
+    source TEXT NOT NULL,                -- 'ui' | 'config'
+    wallet TEXT                          -- S4: NULL = all watched wallets
 );
 CREATE TABLE IF NOT EXISTS quotes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,7 +105,8 @@ CREATE TABLE IF NOT EXISTS quotes (
     price_impact_pct REAL,
     slippage_bps INTEGER,
     route_labels TEXT,                   -- JSON array of AMM labels in the plan
-    source TEXT NOT NULL                 -- 'jupiter-swap-v1'
+    source TEXT NOT NULL,                -- 'jupiter-swap-v1'
+    wallet TEXT                          -- S4: who the quote was for (NULL = anonymous)
 );
 CREATE INDEX IF NOT EXISTS idx_snapshots_wallet_ts ON portfolio_snapshots (wallet, ts);
 CREATE INDEX IF NOT EXISTS idx_balances_snapshot ON token_balances (snapshot_id);
@@ -124,9 +127,17 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout=5000")
     conn.executescript(_SCHEMA)
     # lightweight forward migration for pre-existing databases
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(alerts_log)")}
-    if "target" not in cols:
-        conn.execute("ALTER TABLE alerts_log ADD COLUMN target TEXT")
+    _MIGRATIONS = {
+        "alerts_log": {"target": "TEXT"},
+        "alert_rules": {"wallet": "TEXT"},
+        "quotes": {"wallet": "TEXT"},
+        "positions": {"wallet": "TEXT"},
+    }
+    for _table, _added in _MIGRATIONS.items():
+        _cols = {r[1] for r in conn.execute(f"PRAGMA table_info({_table})")}
+        for _col, _type in _added.items():
+            if _col not in _cols:
+                conn.execute(f"ALTER TABLE {_table} ADD COLUMN {_col} {_type}")
         conn.commit()
     return conn
 
@@ -330,7 +341,8 @@ def upsert_token_meta(
 
 
 def record_positions(
-    conn: sqlite3.Connection, positions: List[Any], source: str
+    conn: sqlite3.Connection, positions: List[Any], source: str,
+    wallet: Optional[str] = None,
 ) -> int:
     """Upsert a batch of CLPosition-like rows for the current tick.
 
@@ -344,13 +356,13 @@ def record_positions(
             """INSERT OR IGNORE INTO positions
                (ts, position_id, dex_name, pool_address, token_a, token_b,
                 tick_lower, tick_upper, current_tick, liquidity,
-                fees_owed_a, fees_owed_b, impermanent_loss, is_in_range, source)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                fees_owed_a, fees_owed_b, impermanent_loss, is_in_range, source, wallet)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 ts, p.position_id, p.dex_name, p.pool_address, p.token_a, p.token_b,
                 p.tick_lower, p.tick_upper, p.current_tick, p.liquidity,
                 p.fees_owed_a, p.fees_owed_b, getattr(p, "impermanent_loss", 0.0),
-                1 if p.is_in_range else 0, source,
+                1 if p.is_in_range else 0, source, wallet,
             ),
         )
         stored += cur.rowcount
@@ -409,14 +421,15 @@ def add_alert_rule(
     enabled: bool = True,
     cooldown_min: int = 30,
     source: str = "ui",
+    wallet: Optional[str] = None,
 ) -> int:
     cur = conn.execute(
         """INSERT INTO alert_rules (type, symbol, threshold, channel,
-             message_template, enabled, cooldown_min, created_ts, source)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             message_template, enabled, cooldown_min, created_ts, source, wallet)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             type_, symbol, threshold, channel, message_template,
-            1 if enabled else 0, cooldown_min, _utcnow(), source,
+            1 if enabled else 0, cooldown_min, _utcnow(), source, wallet,
         ),
     )
     conn.commit()
@@ -442,6 +455,7 @@ def record_quote(
     conn: sqlite3.Connection,
     quote_data: Dict[str, Any],
     source: str = "jupiter-swap-v1",
+    wallet: Optional[str] = None,
 ) -> int:
     """Persist the raw fields of a Jupiter swap/v1 quote response."""
     import json as _json
@@ -452,8 +466,8 @@ def record_quote(
     ]
     cur = conn.execute(
         """INSERT INTO quotes (ts, input_mint, output_mint, in_amount,
-             out_amount, price_impact_pct, slippage_bps, route_labels, source)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             out_amount, price_impact_pct, slippage_bps, route_labels, source, wallet)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             _utcnow(),
             quote_data.get("inputMint", ""),
@@ -464,6 +478,7 @@ def record_quote(
             int(quote_data.get("slippageBps", 0) or 0),
             _json.dumps(labels),
             source,
+            wallet,
         ),
     )
     conn.commit()

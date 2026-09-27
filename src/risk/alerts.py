@@ -15,7 +15,13 @@ from typing import Dict, List, Optional
 import aiohttp
 
 from ..config import load_config
-from ..db import last_alert_ts, latest_positions, list_alert_rules, log_alert
+from ..db import (
+    last_alert_ts,
+    latest_positions,
+    latest_snapshot,
+    list_alert_rules,
+    log_alert,
+)
 from ..models import Alert
 from ..services.market_data import KNOWN_TOKENS, get_usd_prices
 
@@ -145,6 +151,7 @@ async def process_alerts(conn=None) -> None:
                     ),
                     enabled=bool(raw.get("enabled", True)),
                     threshold_symbol=raw.get("symbol"),
+                    wallet=raw.get("wallet"),
                 ),
                 default_cooldown,
             )
@@ -162,6 +169,7 @@ async def process_alerts(conn=None) -> None:
                         or "{symbol} hit {threshold} (now {price})",
                         enabled=bool(rule["enabled"]),
                         threshold_symbol=rule["symbol"],
+                        wallet=rule.get("wallet"),
                     ),
                     int(rule["cooldown_min"]),
                 )
@@ -173,9 +181,25 @@ async def process_alerts(conn=None) -> None:
         if not alert.enabled:
             continue
         if alert.type == "stop_loss":
-            target = f"stop_loss:{alert.threshold_symbol}"
+            scope = f"{alert.wallet[:8]}:" if alert.wallet else ""
+            target = f"stop_loss:{scope}{alert.threshold_symbol}"
             if _in_cooldown(conn, "stop_loss", target, cooldown):
                 continue
+            # S4 wallet scope: a wallet-bound stop_loss only fires while
+            # that wallet's latest real snapshot actually holds the symbol.
+            if alert.wallet and conn is not None:
+                snap = latest_snapshot(conn, alert.wallet)
+                held = snap and any(
+                    (b.get("symbol") or "").upper()
+                    == (alert.threshold_symbol or "").upper()
+                    for b in snap["balances"]
+                )
+                if not held:
+                    logger.info(
+                        f"Stop-loss '{alert.id}' skipped: scoped wallet holds "
+                        f"no {alert.threshold_symbol} in its latest snapshot."
+                    )
+                    continue
             mint = _resolve_mint(alert.threshold_symbol, conn)
             prices = await _live_prices_for([alert], conn)
             price = prices.get(mint) if mint else None
@@ -209,7 +233,12 @@ async def process_alerts(conn=None) -> None:
             # positions table = live-tick monitored CL positions (daemon)
             rows: List[Dict] = []
             if conn is not None:
-                rows = [p for p in latest_positions(conn) if not p["is_in_range"]]
+                rows = [
+                    p
+                    for p in latest_positions(conn)
+                    if not p["is_in_range"]
+                    and (alert.wallet is None or p.get("wallet") == alert.wallet)
+                ]
             for p in rows:
                 pid = p["position_id"]
                 target = f"boundary:{pid}"

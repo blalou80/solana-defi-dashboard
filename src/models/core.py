@@ -51,3 +51,4 @@ class Alert:
     message_template: str
     enabled: bool = True
     threshold_symbol: Optional[str] = None  # e.g. "SOL" for stop_loss
+    wallet: Optional[str] = None  # S4 scope: None = all watched wallets

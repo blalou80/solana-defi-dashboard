@@ -64,7 +64,7 @@ async def tick(config, conn) -> None:
             positions = await fetch_positions_with_live_ticks(wallet)
             if positions:
                 stored = record_positions(
-                    conn, positions, source="orca-api-v2"
+                    conn, positions, source="orca-api-v2", wallet=wallet
                 )
                 logger.info(
                     f"Positions stored for {wallet[:8]}…: {stored} "

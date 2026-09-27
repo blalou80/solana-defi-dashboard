@@ -9,6 +9,7 @@ from src.db import (
     conn_for,
     delete_alert_rule,
     list_alert_rules,
+    list_watchlist,
 )
 
 st.set_page_config(page_title="Alert Rules", layout="wide")
@@ -28,19 +29,34 @@ conn = conn_for(config)
 
 # --- create rule ----------------------------------------------------------
 st.subheader("Add a rule")
+watched = list_watchlist(conn)
 with st.form("add_rule", clear_on_submit=True):
     c1, c2, c3 = st.columns(3)
     with c1:
         rule_type = st.selectbox(
             "Type", ["stop_loss", "boundary"],
             help="stop_loss: fires when a live USD price <= threshold. "
-                 "boundary: fires for any watched CL position out of range.",
+                 "boundary: fires for a watched CL position out of range.",
         )
         symbol = st.text_input(
             "Symbol (stop_loss only)",
             value="SOL",
             help="Resolved via the token registry cache; unknown symbols "
                  "are skipped with a logged reason, never guessed.",
+        )
+        wallet_options = [""] + [w["wallet"] for w in watched]
+        labels = {
+            w["wallet"]: f"{(w['label'] + ' · ') if w['label'] else ''}"
+                        f"{w['wallet'][:8]}…{w['wallet'][-4:]}"
+            for w in watched
+        }
+        wallet_scope = st.selectbox(
+            "Wallet scope",
+            wallet_options,
+            format_func=lambda w: "All watched wallets" if w == "" else labels.get(w, w),
+            help="S4: bound the rule to one wallet. boundary only alerts on "
+                 "that wallet's positions; a scoped stop_loss only fires "
+                 "while that wallet actually holds the symbol.",
         )
     with c2:
         threshold = st.number_input(
@@ -66,6 +82,7 @@ with st.form("add_rule", clear_on_submit=True):
                 enabled=enabled,
                 cooldown_min=int(cooldown),
                 source="ui",
+                wallet=wallet_scope or None,  # "" = all watched wallets
             )
             st.success(f"Rule #{rid} saved — active from the daemon's next tick.")
 
@@ -80,6 +97,8 @@ if rules:
             + (f" {r['symbol']}" if r["symbol"] else "")
             + (f" ≤ {r['threshold']}" if r["threshold"] is not None else "")
             + f" → {r['channel']} · cooldown {r['cooldown_min']}min"
+            + (" · all wallets" if not r.get("wallet")
+               else f" · wallet {r['wallet'][:8]}…")
             + ("" if r["enabled"] else " · DISABLED")
         )
         cols[1].caption(r["created_ts"][:19])
