@@ -7,7 +7,6 @@ import aiohttp
 import pandas as pd
 
 from ..models import Trade
-from ..state import add_trade
 from ..utils import async_retry
 
 logger = logging.getLogger(__name__)
@@ -178,11 +177,6 @@ def realized_slippage(trade: Trade, rpc_url: str) -> Optional[float]:
         return None
     slippage = (expected - realized) / expected * 100
     return slippage
-
-def add_trade_record(trade: Trade) -> None:
-    """Store trade in state."""
-    add_trade(trade)
-    logger.info(f"Trade recorded: {trade.id}")
 
 def parse_quote_for_trade(quote_data: Dict) -> Tuple[float, float, float]:
     """

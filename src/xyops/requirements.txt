@@ -1,4 +1,0 @@
-# Dependencies for Solana DeFi Dashboard xyOps plugin
-# The plugin relies on the existing dashboard dependencies, but we list them for completeness
-streamlit>=1.0.0
-solana>=0.40.0

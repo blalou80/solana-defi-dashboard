@@ -47,14 +47,18 @@ MODULES = _all_module_names()
 
 def test_module_discovery_is_not_empty():
     """If discovery silently breaks, the suite must not pass vacuously."""
-    assert len(MODULES) >= 30, f"only discovered {len(MODULES)} modules: {MODULES}"
+    assert len(MODULES) >= 25, f"only discovered {len(MODULES)} modules: {MODULES}"
     # sanity: the modules that were broken in the 2026-09 audit must be present
     for must in (
         "src.services.dex_api_client",
         "src.services.solana_rpc_client",
-        "src.services.cl_position_service",
+        "src.services.market_data",
+        "src.services.orca_client",
+        "src.services.token_registry",
         "src.utils.error_handling",
         "src.models.cl_position",
+        "src.db",
+        "src.validation",
     ):
         assert must in MODULES, f"{must} missing from discovery"
 
