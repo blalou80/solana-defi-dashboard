@@ -7,7 +7,8 @@ explicit *unavailable* state — it never interpolates, seeds, or fabricates.
 | Metric | Source | Refresh | Calculation | Unavailable state |
 |---|---|---|---|---|
 | Native SOL balance | Solana RPC `getBalance` (configured `rpc_endpoint`) | every daemon tick (`polling_interval_sec`, default 15s) | `value / 10^9` | fetch error → previous snapshot stands, error logged |
-| SPL token balance (USDC/USDT) | Solana RPC `getTokenAccountsByOwner` (jsonParsed) | every tick | sum of `tokenAmount.uiAmount` across accounts; absent tokens are omitted, not zero-filled | same as above |
+| SPL token balances (**all** tokens) | Solana RPC `getTokenAccountsByOwner` by programId (Token + Token-2022), jsonParsed | every tick | sum of `tokenAmount.uiAmount` grouped by mint; decimals taken from the account itself; zero/absent tokens omitted | same as above |
+| Token symbol / name | Metaplex metadata PDA via RPC `getAccountInfo` (raw account bytes, V1 layout), cached in `token_meta` (TTL 30d) | on first sight of a mint, then cached | borsh string parse (name, symbol); SOL is a documented protocol constant | unresolvable → symbol NULL, UI renders mint prefix; never a guessed ticker |
 | USD price per mint | Jupiter Price API v3 (`lite-api.jup.ag/price/v3`) | every tick, batched per snapshot | `usdPrice` field per mint | mint missing from response → `usd_price = NULL`, row excluded from totals |
 | Total portfolio value (USD) | stored snapshot (`portfolio_snapshots.total_value_usd`) | per tick | Σ of `usd_value` over *priced* balances only | `0.0` with unpriced rows visible in `token_balances` |
 | Token exposure breakdown | `token_balances` of latest snapshot | per tick | Σ `usd_value` grouped by symbol | rows with NULL price excluded |

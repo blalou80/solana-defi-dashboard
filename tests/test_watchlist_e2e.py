@@ -93,7 +93,7 @@ async def test_tick_polls_watchlisted_wallet_without_config(conn, monkeypatch):
     all the persistence work."""
     calls = []
 
-    async def fake_balances(wallet, rpc):
+    async def fake_balances(wallet, rpc, conn=None):
         calls.append(wallet)
         return [
             {"mint": "So11111111111111111111111111111111111111112",

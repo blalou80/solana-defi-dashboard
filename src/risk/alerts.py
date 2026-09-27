@@ -22,11 +22,24 @@ from ..state import get_state
 
 logger = logging.getLogger(__name__)
 
-# symbol -> mint, for stop-loss price lookups
+# symbol -> mint, for stop-loss price lookups (seed; registry extends it)
 _SYMBOL_MINT = {sym: mint for mint, (sym, _dec) in KNOWN_TOKENS.items()}
 
 # minutes between repeat alerts for the same (type, target)
 DEFAULT_COOLDOWN_MIN = 30
+
+
+def _resolve_mint(symbol: Optional[str], conn=None) -> Optional[str]:
+    """Seed map first, then the SQLite token registry (W2). Unknown symbol
+    returns None — the alert is skipped, never priced against a guess."""
+    if not symbol:
+        return None
+    mint = _SYMBOL_MINT.get(symbol)
+    if mint or conn is None:
+        return mint
+    from ..db import find_mint_by_symbol
+
+    return find_mint_by_symbol(conn, symbol)
 
 
 def _in_cooldown(conn, type_: str, target: str, cooldown_min: int) -> bool:
@@ -85,12 +98,12 @@ def check_boundary_alert(position) -> bool:
     return check_boundary(position.current_tick, position.tick_lower, position.tick_upper)
 
 
-async def _live_prices_for(alerts: List[Alert]) -> Dict[str, Optional[float]]:
+async def _live_prices_for(alerts: List[Alert], conn=None) -> Dict[str, Optional[float]]:
     """Fetch real USD prices for every symbol referenced by stop-loss alerts."""
     mints = set()
     for a in alerts:
         if a.enabled and a.type == "stop_loss":
-            mint = _SYMBOL_MINT.get(a.threshold_symbol or "")
+            mint = _resolve_mint(a.threshold_symbol, conn)
             if mint:
                 mints.add(mint)
     if not mints:
@@ -142,8 +155,8 @@ async def process_alerts(conn=None) -> None:
             target = f"stop_loss:{alert.threshold_symbol}"
             if _in_cooldown(conn, "stop_loss", target, cooldown):
                 continue
-            mint = _SYMBOL_MINT.get(alert.threshold_symbol or "")
-            prices = await _live_prices_for([alert])
+            mint = _resolve_mint(alert.threshold_symbol, conn)
+            prices = await _live_prices_for([alert], conn)
             price = prices.get(mint) if mint else None
             if price is None:
                 logger.warning(
