@@ -19,12 +19,20 @@ logger = logging.getLogger(__name__)
 
 PRICE_API_URL = "https://lite-api.jup.ag/price/v3"
 
-# Known tokens tracked for balances. Mint -> (symbol, decimals).
+# Seed symbol map for alert stop-loss lookups (mint -> (symbol, decimals)).
+# The token registry (W2) resolves arbitrary mints; this stays as the
+# offline-fast path for the common three.
 KNOWN_TOKENS: Dict[str, tuple] = {
     "So11111111111111111111111111111111111111112": ("SOL", 9),
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": ("USDC", 6),
     "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": ("USDT", 6),
 }
+
+# SPL Token + Token-2022 programs — one scan each replaces per-mint queries.
+TOKEN_PROGRAMS = (
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+)
 
 
 @async_retry(max_attempts=3, delay=1.0, backoff=2.0)
@@ -56,10 +64,12 @@ async def _rpc_call(session: aiohttp.ClientSession, url: str, method: str, param
 
 
 async def get_wallet_balances(wallet: str, rpc_url: str) -> List[Dict]:
-    """Native SOL + known SPL token balances for one wallet, via RPC only.
+    """Native SOL + EVERY SPL token balance (Token & Token-2022) for one
+    wallet, via two program-scoped RPC calls (W2: no per-mint allowlist).
 
-    Each row: {mint, symbol, amount}. Tokens the wallet does not hold are
-    simply absent — never zero-filled with guesses.
+    Each row: {mint, amount, decimals}. Tokens the wallet does not hold are
+    simply absent — never zero-filled with guesses. ``symbol`` is filled by
+    the registry in :func:`build_portfolio_balances`, not here.
     """
     balances: List[Dict] = []
     async with aiohttp.ClientSession() as session:
@@ -69,35 +79,62 @@ async def get_wallet_balances(wallet: str, rpc_url: str) -> List[Dict]:
         balances.append(
             {
                 "mint": "So11111111111111111111111111111111111111112",
-                "symbol": "SOL",
                 "amount": result["value"] / (10**9),
+                "decimals": 9,
             }
         )
 
-        for mint, (symbol, _decimals) in KNOWN_TOKENS.items():
-            if mint == "So11111111111111111111111111111111111111112":
-                continue  # covered by getBalance above
+        by_mint: Dict[str, float] = {}
+        dec_by_mint: Dict[str, int] = {}
+        for program in TOKEN_PROGRAMS:
             result = await _rpc_call(
                 session,
                 rpc_url,
                 "getTokenAccountsByOwner",
-                [wallet, {"mint": mint}, {"encoding": "jsonParsed", "commitment": "confirmed"}],
+                [
+                    wallet,
+                    {"programId": program},
+                    {"encoding": "jsonParsed", "commitment": "confirmed"},
+                ],
             )
-            total = 0.0
             for acc in result.get("value", []):
                 info = acc["account"]["data"]["parsed"]["info"]
-                total += float(info["tokenAmount"].get("uiAmount") or 0.0)
+                mint = info["mint"]
+                amt = info["tokenAmount"]
+                by_mint[mint] = by_mint.get(mint, 0.0) + float(amt.get("uiAmount") or 0.0)
+                dec_by_mint[mint] = int(amt.get("decimals", 0))
+        for mint, total in by_mint.items():
             if total > 0:
-                balances.append({"mint": mint, "symbol": symbol, "amount": total})
+                balances.append(
+                    {"mint": mint, "amount": total, "decimals": dec_by_mint[mint]}
+                )
     return balances
 
 
-async def build_portfolio_balances(wallet: str, rpc_url: str) -> List[Dict]:
-    """Balances enriched with real USD prices; rows without a price carry
-    usd_price=None and usd_value=None."""
+async def build_portfolio_balances(
+    wallet: str, rpc_url: str, conn=None
+) -> List[Dict]:
+    """Balances enriched with registry symbols and real USD prices.
+
+    Rows without a price carry usd_price=None / usd_value=None; rows whose
+    metadata cannot be resolved carry symbol=None. Neither is ever guessed.
+    When ``conn`` (SQLite) is given, the token registry caches metadata for
+    every mint seen.
+    """
     balances = await get_wallet_balances(wallet, rpc_url)
-    prices = await get_usd_prices([b["mint"] for b in balances])
+    mints = [b["mint"] for b in balances]
+    prices = await get_usd_prices(mints) if mints else {}
+
+    symbols: Dict[str, Optional[str]] = {}
+    if conn is not None and mints:
+        from .token_registry import resolve_mints
+
+        hints = {b["mint"]: b["decimals"] for b in balances}
+        infos = await resolve_mints(conn, mints, rpc_url, decimals_hint=hints)
+        symbols = {m: (infos.get(m) or {}).get("symbol") for m in mints}
+
     for b in balances:
+        b["symbol"] = symbols.get(b["mint"])
         price = prices.get(b["mint"])
         b["usd_price"] = price
         b["usd_value"] = None if price is None else b["amount"] * price

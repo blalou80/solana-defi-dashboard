@@ -72,6 +72,15 @@ CREATE TABLE IF NOT EXISTS watchlist (
     added_ts TEXT NOT NULL,
     source TEXT NOT NULL                 -- 'ui' | 'config'
 );
+CREATE TABLE IF NOT EXISTS token_meta (
+    mint TEXT PRIMARY KEY,
+    symbol TEXT,                         -- NULL = could not resolve (never guessed)
+    name TEXT,
+    decimals INTEGER,                    -- NULL = unknown; balances then render without price math
+    logo_uri TEXT,
+    fetched_ts TEXT NOT NULL,
+    source TEXT NOT NULL                 -- 'metaplex+price-v3' etc.
+);
 CREATE INDEX IF NOT EXISTS idx_snapshots_wallet_ts ON portfolio_snapshots (wallet, ts);
 CREATE INDEX IF NOT EXISTS idx_balances_snapshot ON token_balances (snapshot_id);
 """
@@ -225,6 +234,57 @@ def list_watchlist(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
         "SELECT wallet, label, added_ts, source FROM watchlist ORDER BY added_ts"
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# --- token metadata cache -------------------------------------------------
+
+def get_token_meta(conn: sqlite3.Connection, mint: str) -> Optional[Dict[str, Any]]:
+    row = conn.execute(
+        "SELECT * FROM token_meta WHERE mint = ?", (mint,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def find_mint_by_symbol(conn: sqlite3.Connection, symbol: str) -> Optional[str]:
+    """Reverse lookup used by alert symbol resolution. If several cached
+    mints share a symbol, none is silently chosen — the first by mint order
+    is returned and the ambiguity is logged."""
+    rows = conn.execute(
+        "SELECT mint FROM token_meta WHERE symbol = ? COLLATE NOCASE ORDER BY mint",
+        (symbol,),
+    ).fetchall()
+    if not rows:
+        return None
+    if len(rows) > 1:
+        logging.getLogger(__name__).warning(
+            f"symbol {symbol!r} is ambiguous across {len(rows)} cached mints; "
+            f"using {rows[0]['mint'][:8]}…"
+        )
+    return rows[0]["mint"]
+
+
+def upsert_token_meta(
+    conn: sqlite3.Connection,
+    mint: str,
+    symbol: Optional[str],
+    name: Optional[str],
+    decimals: Optional[int],
+    logo_uri: Optional[str],
+    source: str,
+) -> None:
+    conn.execute(
+        """INSERT INTO token_meta (mint, symbol, name, decimals, logo_uri, fetched_ts, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(mint) DO UPDATE SET
+             symbol=COALESCE(excluded.symbol, token_meta.symbol),
+             name=COALESCE(excluded.name, token_meta.name),
+             decimals=COALESCE(excluded.decimals, token_meta.decimals),
+             logo_uri=COALESCE(excluded.logo_uri, token_meta.logo_uri),
+             fetched_ts=excluded.fetched_ts,
+             source=excluded.source""",
+        (mint, symbol, name, decimals, logo_uri, _utcnow(), source),
+    )
+    conn.commit()
 
 
 def record_positions(

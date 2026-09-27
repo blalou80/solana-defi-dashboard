@@ -41,7 +41,9 @@ async def tick(config, conn) -> None:
         return
     for wallet in wallets:
         try:
-            balances = await build_portfolio_balances(wallet, config.rpc_endpoint)
+            balances = await build_portfolio_balances(
+                wallet, config.rpc_endpoint, conn=conn
+            )
             snap_id = record_snapshot(
                 conn,
                 wallet=wallet,
