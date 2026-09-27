@@ -51,7 +51,7 @@ def compute_net_yield(fees_earned: float, impermanent_loss: float, liquidity: fl
 graph TD
     A[Solana RPC] --> B[Engines Layer]
     C[Jupiter API] --> B
-    D[Orca/Raydium Programs] --> B
+    D[Orca Whirlpool API] --> B
     B --> E[Risk Metrics Engine]
     B --> F[Shared State]
     E --> G[Alerting System]
@@ -63,7 +63,7 @@ graph TD
 1. **Data Ingestion Layer** (`src/engines/`)
    - Jupiter API client for swap quotes and route analysis
    - Solana RPC clients for position and transaction data
-   - Protocol-specific parsers for Orca Whirlpools and Raydium CLMM
+   - Protocol-specific parser for Orca Whirlpools (Raydium CLMM was cut at the W5 gate: their v3 API exposes no reachable position-by-owner endpoint — see specs/004 §W5)
 
 2. **Core Logic Layer**
    - `src/engines/liquidity.py`: Position tracking, IL, fee calculations
@@ -248,6 +248,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - [Jupiter Aggregator](https://jup.ag/) for their powerful swap API
-- [Orca](https://www.orca.so/) and [Raydium](https://raydium.io/) for concentrated liquidity protocols
+- [Orca](https://www.orca.so/) for concentrated liquidity position data
 - [Streamlit](https://streamlit.io/) for the incredible dashboard framework
 - The Solana developer community for excellent documentation and tooling

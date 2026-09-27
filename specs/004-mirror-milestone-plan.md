@@ -78,7 +78,24 @@
 
 **Exit:** alert + slippage pillars of MIRROR; the "Add Alert (this session)" honesty wart is gone.
 
-## 5. Workstream W5 — Second venue: Raydium CLMM **or** scope-cut (est. 1 day / 0.25 day)
+## 5. Workstream W5 — Second venue: Raydium CLMM **or** scope-cut — **DECIDED: CUT (2026-09-27)**
+
+**Gate probe result:** `api-v3.raydium.io` is reachable and `/pools/info/mint` returns real
+concentrated-pool data, but **no position-by-owner endpoint exists** on the public API
+(`position/clmm/*`, `position/list`, `position?owners=` → 404; the OpenAPI spec is a
+Swagger-UI HTML shell with no discoverable paths). Without an owner→positions source,
+Raydium CLMM monitoring cannot be implemented fully, and per §0 the half-states are
+forbidden. **Action taken:** every Raydium monitoring claim removed from README
+(architecture diagram, layer list, acknowledgements); `RaydiumApiClient` stays as an
+honest metadata-only client. Re-open only if Raydium ships a positions API or a
+keyed-indexer (Helius) plan is adopted.
+
+## 5b. Workstream W2 — status: DONE (`fbe7c6f`, CI green)
+
+Token registry live: Metaplex PDA byte-parsing (fixture = real USDC metadata from
+mainnet), `token_meta` 30-day cache, case-insensitive reverse lookup with ambiguity
+logging, and the balance scan now covers **every** mint via two program-scoped RPC
+calls (Token + Token-2022) — the 3-mint allowlist is gone from the data path.
 
 **Decision gate (do this first):** probe `api-v3.raydium.io` CLMM endpoints from this network.
 - **If reachable:** implement `raydium_client.py` mirroring `orca_client.py` (positions by owner, live tick), `source="raydium-api-v3"`, tests incl. one live check.
