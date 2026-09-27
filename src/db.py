@@ -66,6 +66,12 @@ CREATE TABLE IF NOT EXISTS alerts_log (
     target TEXT,                         -- what the alert was about (wallet/symbol/position)
     delivered INTEGER NOT NULL DEFAULT 0  -- 1 only after webhook 2xx
 );
+CREATE TABLE IF NOT EXISTS watchlist (
+    wallet TEXT PRIMARY KEY,             -- validated base58 public key
+    label TEXT,
+    added_ts TEXT NOT NULL,
+    source TEXT NOT NULL                 -- 'ui' | 'config'
+);
 CREATE INDEX IF NOT EXISTS idx_snapshots_wallet_ts ON portfolio_snapshots (wallet, ts);
 CREATE INDEX IF NOT EXISTS idx_balances_snapshot ON token_balances (snapshot_id);
 """
@@ -189,6 +195,36 @@ def last_alert_ts(
         (type_, target),
     ).fetchone()
     return row["ts"] if row else None
+
+
+# --- watchlist ---------------------------------------------------------
+
+def add_watch(
+    conn: sqlite3.Connection, wallet: str, label: Optional[str] = None,
+    source: str = "ui",
+) -> bool:
+    """Add a wallet to the watchlist. Returns True if newly added,
+    False if already watched (idempotent)."""
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO watchlist (wallet, label, added_ts, source) "
+        "VALUES (?, ?, ?, ?)",
+        (wallet, label, _utcnow(), source),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def remove_watch(conn: sqlite3.Connection, wallet: str) -> bool:
+    cur = conn.execute("DELETE FROM watchlist WHERE wallet = ?", (wallet,))
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def list_watchlist(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT wallet, label, added_ts, source FROM watchlist ORDER BY added_ts"
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def record_positions(
