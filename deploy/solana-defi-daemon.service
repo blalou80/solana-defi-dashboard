@@ -1,0 +1,23 @@
+# systemd unit: run the data daemon persistently.
+# Install: copy both units, adjust User/WorkingDirectory/Environment,
+# then: systemctl daemon-reload && systemctl enable --now solana-defi-daemon
+[Unit]
+Description=Solana DeFi Dashboard data daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=defi
+WorkingDirectory=/opt/solana-defi-dashboard
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/solana-defi-dashboard/.venv/bin/defi-daemon
+Restart=on-failure
+RestartSec=5
+# SQLite needs a real disk; keep the data dir on local storage
+NoNewPrivileges=true
+ProtectHome=read-only
+ReadWritePaths=/opt/solana-defi-dashboard/.data
+
+[Install]
+WantedBy=multi-user.target

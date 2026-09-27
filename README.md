@@ -133,8 +133,11 @@ Individual commands once installed (`pip install -e .`):
 
 ### Production notes
 SQLite needs a disk — deploy the daemon and dashboard on one host with a
-persistent volume (small VPS, Fly.io volume, or a systemd pair). There is
-no hosted deployment yet; do not put this on serverless.
+persistent volume. Ready-made recipes in [`deploy/`](deploy/):
+`solana-defi-daemon.service` + `solana-defi-dashboard.service` (systemd
+pair) or `docker-compose.yml` (shared volume). The dashboard binds to
+localhost by default in the systemd unit — put a reverse proxy with auth
+in front before any public exposure. Do not deploy on serverless.
 
 ## � kml Configuration Files
 

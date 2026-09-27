@@ -1,0 +1,17 @@
+[Unit]
+Description=Solana DeFi Dashboard (Streamlit UI)
+After=network-online.target solana-defi-daemon.service
+
+[Service]
+Type=simple
+User=defi
+WorkingDirectory=/opt/solana-defi-dashboard
+ExecStart=/opt/solana-defi-dashboard/.venv/bin/python -m streamlit run src/dashboard/app.py --server.headless true --server.address 127.0.0.1 --server.port 8501
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+# The dashboard reads the same SQLite dir; bind it to localhost behind a
+# reverse proxy with auth before any public exposure.
+
+[Install]
+WantedBy=multi-user.target
