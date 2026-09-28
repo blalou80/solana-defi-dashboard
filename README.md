@@ -1,224 +1,130 @@
-# Solana DeFi Analytics & Risk Management Dashboard
+# Solana DeFi Dashboard
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Streamlit](https://img.shields.io/badge/dashboard-streamlit-FF4B4B.svg)](https://streamlit.io/)
+![CI](https://github.com/blalou80/solana-defi-dashboard/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Release](https://img.shields.io/github/v/release/blalou80/solana-defi-dashboard)
 
-A Python toolkit for DeFi analytics and risk management on Solana. As of 2026-09-27 (Phases 0–4 complete): real Jupiter Swap API v1 quotes, real RPC wallet balances and Orca Whirlpool positions (live pool ticks) persisted to SQLite, history-driven VaR/Sharpe that show "unavailable" until enough real samples exist, on-chain receipt parsing for realized slippage, and Telegram/Discord alerts that fire on live prices with per-target cooldowns. Fee harvesting, transaction building/simulation and trade execution remain **not implemented** — those functions raise explicit errors instead of returning mock data. `METRICS.md` is the ground-truth table for every displayed value.
+**Live website:** https://solana-defi-dashboard-ashen.vercel.app
 
-## ✨ Features
+An independent, read-only analytics and risk-monitoring tool for Solana DeFi.
+It polls your wallets against public infrastructure (Solana RPC, Jupiter, Orca),
+persists everything to a local SQLite database, and renders an honest portfolio,
+concentrated-liquidity, and slippage picture — with alerts to Telegram/Discord.
 
-- **Real-Time Slippage Engine**: Fetch live quotes from Jupiter Aggregator (Swap API v1), compute expected price, price impact, and slippage from real route plans.
-- **Concentrated Liquidity Monitor**: Orca Whirlpool positions are ingested every daemon tick via the live Orca v2 API, with the pool's real `tickCurrentIndex` deciding in/out-of-range. **Status: awaiting live verification** — tested against the real API envelope, but not yet exercised with a wallet that holds actual positions; the dashboard states this explicitly until it is. IL, net-yield and range math are implemented and tested. Raydium CLMM ingestion is not connected (no mock fallback).
-- **Risk Dashboard**: Interactive UI showing portfolio value, token exposure, VaR, Sharpe ratio, and automated alerts via Telegram/Discord. VaR/Sharpe require ≥20/≥5 stored snapshots and display "unavailable" until real history exists.
-- **SQLite Shared State**: The daemon writes snapshots to `.data/dashboard.db`; the dashboard reads them — one persisted source of truth across processes.
-- **Async-First Architecture**: Built with `asyncio` and `aiohttp` with working async retry/backoff on all network calls.
-- **Modular & Extensible**: Clean separation of concerns with well-defined interfaces between data engines, risk calculations, and presentation layer.
+**The core rule: unavailable beats fabricated.** Every displayed number is
+traceable to a documented source in [`METRICS.md`](METRICS.md); anything that
+cannot be fetched is rendered as "unavailable" with a reason. There are no
+mock quotes, no seeded metrics, and no signing, sending, or custody of any kind.
 
-## 📊 DeFi Calculation Capabilities
+## Features
 
-### Impermanent Loss (IL)
-```python
-def compute_impermanent_loss(price_current: float, price_entry: float) -> float:
-    """Compute impermanent loss percentage."""
-    if price_entry == 0:
-        return 0.0
-    ratio = price_current / price_entry
-    il = 2 * math.sqrt(ratio) / (1 + ratio) - 1
-    return abs(il) * 100  # as percentage
+- **Live swap analysis** — Jupiter Swap API v1 quotes: expected price, price
+  impact, slippage, and per-AMM route breakdown. Every quote shown is persisted
+  for audit.
+- **Realized slippage from receipts** — parse any of your transactions'
+  on-chain `pre/postTokenBalances` and compare what you received against what
+  the quote promised.
+- **Full-portfolio balances** — one program-scoped RPC scan per token program
+  returns *every* SPL mint a wallet holds (Token + Token-2022), priced via
+  Jupiter Price v3, named via Metaplex metadata (no allowlists).
+- **Orca concentrated-liquidity monitoring** — positions ingested from the
+  Orca v2 API with the pool's live tick deciding in/out-of-range; 7-day tick
+  and fee history with charts.
+- **Risk metrics with honest horizons** — intraday and daily VaR/Sharpe
+  computed only from stored real history; "unavailable (n samples)" until
+  thresholds are met.
+- **Durable alert rules** — stop-loss on live prices, out-of-range on real
+  positions, per-rule cooldowns, wallet scoping, and a persisted delivery log
+  (`delivered=1` only after a webhook 2xx).
+- **Read-only by design** — no private keys, no transaction building, no
+  execution. Fee harvesting and simulation raise explicit errors.
+
+## Architecture
+
+```
+Solana RPC · Jupiter (swap v1 / price v3) · Metaplex PDAs · Orca v2 API
+        │
+        ▼
+ daemon tick ──► SQLite (.data/dashboard.db) ◄── Streamlit dashboard
+        │            snapshots · balances · positions(history)
+        ▼            alert_rules · alerts_log · quotes · token_meta
+ alert engine ──► Telegram / Discord webhooks
 ```
 
-### Slippage Analysis
-- Fetches route data from Jupiter Swap API v1 (`lite-api.jup.ag/swap/v1`)
-- Computes price impact percentage and slippage basis points
-- Compares multiple routes for optimal execution
-- Tracks realized slippage from on-chain transaction receipts
+The daemon writes, the dashboard reads, and the SQLite file is the only
+cross-process state. Python 3.12, `asyncio`/`aiohttp` with real retry/backoff,
+WAL-mode SQLite. ~2,600 LOC, 114 tests, deterministic CI (live network tests
+run as a separate informational step).
 
-### Yield Calculations
-```python
-def compute_net_yield(fees_earned: float, impermanent_loss: float, liquidity: float, time_days: float = 30) -> float:
-    """Compute net yield annualized percentage."""
-    if liquidity == 0 or time_days == 0:
-        return 0.0
-    net = fees_earned - impermanent_loss
-    annualized = (net / liquidity) * (365 / time_days) * 100
-    return annualized
-```
+## Screenshots
 
-## 🏗️ Architecture
+| Portfolio | Positions |
+|---|---|
+| ![portfolio](docs/screens/home.png) | ![positions](docs/screens/positions.png) |
+| **Trade** | **Alerts** |
+| ![trade](docs/screens/trade.png) | ![alerts](docs/screens/alerts.png) |
 
-```mermaid
-graph TD
-    A[Solana RPC] --> B[Engines Layer]
-    C[Jupiter API] --> B
-    D[Orca Whirlpool API] --> B
-    B --> E[Risk Metrics Engine]
-    B --> F[Shared State]
-    E --> G[Alerting System]
-    F --> H[Streamlit Dashboard]
-    G --> H
-```
-
-### Layers
-1. **Data Ingestion Layer** (`src/engines/`)
-   - Jupiter API client for swap quotes and route analysis
-   - Solana RPC clients for position and transaction data
-   - Protocol-specific parser for Orca Whirlpools (Raydium CLMM is not supported: their public API exposes no position-by-owner endpoint)
-
-2. **Core Logic Layer**
-   - `src/engines/liquidity.py`: Position tracking, IL, fee calculations
-   - `src/engines/slippage.py`: Route comparison and slippage metrics
-   - `src/risk/metrics.py`: Portfolio risk (VaR, Sharpe, diversification)
-   - `src/risk/alerts.py`: Notification dispatch (Telegram, Discord, email)
-
-3. **State Management** (`src/state.py`)
-   - Thread-safe in-memory store for positions, trades, and portfolio state
-   - Singleton pattern with update functions from background tasks
-
-4. **Presentation Layer** (`src/dashboard/`)
-   - Main Streamlit application (`app.py`)
-   - Modular pages for different views (Trades, Positions, Analytics)
-   - Real-time charts with Plotly and native Streamlit components
-
-5. **Configuration & Utilities**
-   - `src/config.py`: YAML-based configuration with environment overrides
-   - `src/utils.py`: Logging configuration, retry decorators, async helpers
-   - `src/models.py`: Pydantic data models for type safety and validation
-
-## 📈 Test Coverage
-
-Run tests with:
-```bash
-pytest tests/ -q        # 83 tests
-ruff check src tests    # lint gate (config in pyproject.toml)
-```
-
-Suite contents (all passing as of 2026-09-27):
-- **Import smoke test** — every module under `src/` must import (43 cases; guards the failure class that once left half the codebase dead)
-- **Unit** — IL, slippage metric parsing (real Jupiter v1 fixture), VaR/Sharpe, retry semantics
-- **Integration (live network, self-skipping)** — Jupiter quote, Orca pool tick, on-chain receipt fetch
-- **Persistence** — SQLite snapshot roundtrip, metrics refusing low history, alert cooldowns
-- **End-to-end alerts** — config alert → live price → webhook sink → `delivered=1` → cooldown
-
-The former `tests/integration` / `tests/contract` directories are empty placeholders; the claims about them were removed rather than kept aspirational.
-
-## 🚀 Quickstart
-
-### Prerequisites
-- Python 3.12+ (pinned deps require it)
-- Solana RPC endpoint (public mainnet works; a keyed Helius/QuickNode endpoint is recommended for continuous polling)
-- (Optional) Telegram/Discord webhook URLs for alerts
+## Installation
 
 ```bash
 git clone https://github.com/blalou80/solana-defi-dashboard.git
 cd solana-defi-dashboard
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.lock.txt && pip install -e .
-
-cp .config.yaml.example .config.yaml   # set rpc_endpoint; watch wallets from the UI
+cp .config.yaml.example .config.yaml   # set rpc_endpoint
 cp .env.example .env                   # optional: webhook URLs
-
-defi-up        # daemon + dashboard together, Ctrl-C stops both
 ```
 
-Individual commands once installed (`pip install -e .`):
+A keyed RPC endpoint (e.g. free Helius tier) is strongly recommended for
+continuous polling; the public mainnet endpoint rate-limits.
 
-| Command | What it does |
-|---|---|
-| `defi-up` | daemon + Streamlit dashboard in one shot (http://localhost:8501) |
-| `defi-daemon` | data collector only: polls watched wallets, persists to `.data/dashboard.db` |
-| `defi-quote quote <mintIn> <mintOut> <amount>` | live Jupiter route table (also logged to the `quotes` table) |
-| `streamlit run src/dashboard/app.py` | dashboard only (reads whatever the daemon persisted) |
-| `python -m pytest tests/ -q` | the full test suite |
-
-### Production notes
-SQLite needs a disk — deploy the daemon and dashboard on one host with a
-persistent volume. Ready-made recipes in [`deploy/`](deploy/):
-`solana-defi-daemon.service` + `solana-defi-dashboard.service` (systemd
-pair) or `docker-compose.yml` (shared volume). The dashboard binds to
-localhost by default in the systemd unit — put a reverse proxy with auth
-in front before any public exposure. Do not deploy on serverless.
-
-## � kml Configuration Files
-
-### `.config.yaml`
-```yaml
-rpc_endpoint: "https://api.mainnet-beta.solana.com"  # or your Helius/QuickNode endpoint
-polling_interval_sec: 15                            # How often to update positions
-risk_window_days: 30                                # Lookback period for risk metrics
-portfolio_assets:                                   # Tokens to track in portfolio
-  - "SOL"
-  - "USDC"
-  - "RAY"
-  - "ORCA"
-alert_channels:                                     # Enable/disable alert channels
-  telegram: false
-  email: false
-  discord: false
-```
-
-### `.env`
-```env
-# Telegram Alerts (optional)
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-TELEGRAM_CHAT_ID=your_chat_id_here
-
-# Discord Alerts (optional)
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
-
-# Email Alerts (optional - requires SMTP configuration)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
-ALERT_FROM=your_email@gmail.com
-ALERT_TO=recipient@example.com
-```
-
-## 🐳 Docker Deployment
-
-A Dockerfile is provided for containerized deployment:
+## Quick start
 
 ```bash
-# Build the image
-docker build -t solana-defi-dashboard .
-
-# Run with docker-compose (recommended)
-docker-compose up -d
-
-# Or run directly
-docker run -p 8501:8501 --name defi-dashboard solana-defi-dashboard
+defi-up        # daemon + dashboard together (Ctrl-C stops both)
+open http://localhost:8501
+# add a wallet address in the browser form — polled on the next tick
 ```
 
-See `Dockerfile` and `docker-compose.yml` for details.
+Individual commands: `defi-daemon`, `defi-quote quote <mintIn> <mintOut> <amount>`,
+`streamlit run src/dashboard/app.py`, `python -m pytest tests -q`.
 
-## 📚 API Reference
+Deployment recipes for systemd and docker-compose live in [`deploy/`](deploy)
+(SQLite needs a disk — not serverless). The dashboard binds to localhost by
+default; put a reverse proxy with auth in front before any public exposure.
 
-Generated API documentation is available in the `docs/` directory or can be built with:
-```bash
-pip install -r docs/requirements.txt
-mkdocs serve
-```
+## Current status
 
-## 🤝 Contributing
+A solid **single-user local tool**, not a hosted product. Working and
+browser-verified: balances, prices, token registry, quotes, quote log,
+realized-slippage parsing, alert rules with cooldowns, the dashboard itself.
+Honest open items: Orca position ingestion is tested against the real API
+envelope but has not yet rendered a wallet that actually holds a position (the
+UI says so explicitly); alert delivery is verified against a local webhook
+sink, not yet a live bot; there is no multi-user auth or hosting layer.
+Releases: [GitHub Releases](https://github.com/blalou80/solana-defi-dashboard/releases) ·
+history: [`CHANGELOG.md`](CHANGELOG.md).
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Roadmap (near-term)
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing-feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Live verification pass: first real position-holding wallet + first real
+   Telegram delivery.
+2. Keyed-RPC configuration path and polling backpressure.
+3. Position/quote export (CSV) and richer history views.
+4. Hosted single-tenant beta (auth + per-user watchlists).
 
-Please make sure to update tests as appropriate and follow the existing code style.
+## Contributing
 
-## 📄 License
+Issues and PRs are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Ground rules: read-only product (nothing signs or sends), no fabricated data
+in any code path or UI state, every displayed metric documented in
+`METRICS.md`, tests required for new modules (`ruff check src tests` and
+`pytest -m "not live"` must pass).
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## License
 
-## 🙏 Acknowledgments
+MIT — see [LICENSE](LICENSE).
 
-- [Jupiter Aggregator](https://jup.ag/) for their powerful swap API
-- [Orca](https://www.orca.so/) for concentrated liquidity position data
-- [Streamlit](https://streamlit.io/) for the incredible dashboard framework
-- The Solana developer community for excellent documentation and tooling
+*Independent project. Not affiliated with the Solana Foundation. Nothing here
+is financial advice.*
