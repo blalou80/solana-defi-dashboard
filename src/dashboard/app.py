@@ -75,7 +75,7 @@ if watched:
 # data renders as an explicit unavailable state.
 st.header("Portfolio Summary")
 
-# S6: show every wallet the store knows about — watchlist, config, or
+# Show every wallet the store knows about — watchlist, config, or
 # simply having persisted data (a daemon-polled wallet must not vanish
 # from the summary when its watchlist entry is removed).
 wallets = [w["wallet"] for w in watched]

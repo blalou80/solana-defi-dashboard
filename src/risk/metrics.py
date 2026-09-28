@@ -122,7 +122,7 @@ def compute_portfolio_metrics(conn, wallet: str) -> Portfolio:
         portfolio.sharpe_ratio = None
     portfolio.snapshot_count = len(history)
 
-    # S3: daily-resolution metrics from the end-of-day rollup, clearly
+    # Daily-resolution metrics from the end-of-day rollup, clearly
     # separated from the intraday snapshot metrics above.
     daily = daily_value_history(conn, wallet)
     if len(daily) >= MIN_SAMPLES_DAILY:

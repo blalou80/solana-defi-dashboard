@@ -185,7 +185,7 @@ async def process_alerts(conn=None) -> None:
             target = f"stop_loss:{scope}{alert.threshold_symbol}"
             if _in_cooldown(conn, "stop_loss", target, cooldown):
                 continue
-            # S4 wallet scope: a wallet-bound stop_loss only fires while
+            # Wallet scope: a wallet-bound stop_loss only fires while
             # that wallet's latest real snapshot actually holds the symbol.
             if alert.wallet and conn is not None:
                 snap = latest_snapshot(conn, alert.wallet)

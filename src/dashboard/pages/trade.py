@@ -48,7 +48,7 @@ with col4:
         "Quote for wallet (optional)",
         [""] + [w["wallet"] for w in watched],
         format_func=lambda w: "— anonymous —" if w == "" else (w[:8] + "…" + w[-4:]),
-        help="S4: attributes the logged quote to a watched wallet.",
+        help="Attributes the logged quote to a watched wallet.",
     )
 
 if st.button("Get Quote"):

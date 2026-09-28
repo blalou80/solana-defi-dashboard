@@ -1,6 +1,6 @@
-"""S1 regression: a custom db_path must never split the store again.
+"""Regression: a custom db_path must never split the store again.
 
-Bug class (post-MIRROR audit): cli.py and trade.py opened
+Bug class: cli.py and trade.py opened
 get_connection() (default path) while everything else honored
 config.db_path — quotes landed in a database the UI would never read.
 """

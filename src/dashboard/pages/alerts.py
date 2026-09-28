@@ -54,7 +54,7 @@ with st.form("add_rule", clear_on_submit=True):
             "Wallet scope",
             wallet_options,
             format_func=lambda w: "All watched wallets" if w == "" else labels.get(w, w),
-            help="S4: bound the rule to one wallet. boundary only alerts on "
+            help="Bound the rule to one wallet. boundary only alerts on "
                  "that wallet's positions; a scoped stop_loss only fires "
                  "while that wallet actually holds the symbol.",
         )

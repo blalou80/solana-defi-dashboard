@@ -1,4 +1,4 @@
-"""S2: WAL + busy_timeout must make concurrent daemon-writer / UI-reader
+"""WAL + busy_timeout must make concurrent daemon-writer / UI-reader
 access safe — no 'database is locked' surfaces."""
 
 import threading
@@ -73,7 +73,7 @@ def test_writer_reader_interleave_without_lock_errors(dbfile):
 
 
 def test_price_requests_are_chunked():
-    """S2 live evidence: a whale wallet's hundreds of mints blew the price
+    """Live evidence: a whale wallet's hundreds of mints blew the price
     API URL (HTTP 414). get_usd_prices must split into <=25-mint requests."""
     import asyncio
 

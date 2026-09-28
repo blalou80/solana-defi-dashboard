@@ -96,7 +96,7 @@ def test_metrics_computed_from_real_history(conn):
     assert p.snapshot_count == 25
 
 
-# --- S3: daily rollup + daily-resolution metrics ----------------------------
+# --- daily rollup + daily-resolution metrics ----------------------------
 
 def _bal(v):
     return [{"mint": "SOL", "symbol": "SOL", "amount": 1.0,

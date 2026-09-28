@@ -1,4 +1,4 @@
-"""S4 tests: wallet-scoped alert rules, position ownership, quote attribution."""
+"""Wallet-scoping tests: wallet-scoped alert rules, position ownership, quote attribution."""
 
 import json
 import sqlite3

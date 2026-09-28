@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS positions (
     impermanent_loss REAL,
     is_in_range INTEGER,
     source TEXT NOT NULL,
-    wallet TEXT,                         -- S4: owner wallet (from the watchlist poll)
+    wallet TEXT,                         -- owner wallet (from the watchlist poll)
     UNIQUE (ts, position_id)
 );
 CREATE TABLE IF NOT EXISTS alerts_log (
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS alert_rules (
     cooldown_min INTEGER NOT NULL DEFAULT 30,
     created_ts TEXT NOT NULL,
     source TEXT NOT NULL,                -- 'ui' | 'config'
-    wallet TEXT                          -- S4: NULL = all watched wallets
+    wallet TEXT                          -- NULL = all watched wallets
 );
 CREATE TABLE IF NOT EXISTS quotes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS quotes (
     slippage_bps INTEGER,
     route_labels TEXT,                   -- JSON array of AMM labels in the plan
     source TEXT NOT NULL,                -- 'jupiter-swap-v1'
-    wallet TEXT                          -- S4: who the quote was for (NULL = anonymous)
+    wallet TEXT                          -- who the quote was for (NULL = anonymous)
 );
 CREATE TABLE IF NOT EXISTS daily_values (
     wallet TEXT NOT NULL,
@@ -125,7 +125,7 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
-    # S2: the daemon writes while Streamlit reads from another process.
+    # The daemon writes while Streamlit reads from another process.
     # WAL lets readers proceed during a writer's transaction, and the
     # busy timeout absorbs the remaining write-lock collisions instead of
     # surfacing "database is locked".
@@ -150,7 +150,7 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
 
 
 def conn_for(config=None) -> sqlite3.Connection:
-    """THE way to open the shared database (S1: single entry point).
+    """THE way to open the shared database (single entry point).
 
     Every call site — daemon, CLI, dashboard pages — goes through here so
     a custom ``db_path`` in .config.yaml can never split the store into
@@ -202,7 +202,7 @@ def record_snapshot(
                 b.get("usd_value"),
             ),
         )
-    # S3: same-day rollup so daily-resolution metrics are cheap and honest
+    # Same-day rollup so daily-resolution metrics are cheap and honest
     conn.execute(
         """INSERT INTO daily_values (wallet, date, total_value_usd, updated_ts)
            VALUES (?, ?, ?, ?)
@@ -519,7 +519,7 @@ def list_quotes(conn: sqlite3.Connection, limit: int = 50) -> List[Dict[str, Any
 
 
 def wallets_with_data(conn: sqlite3.Connection) -> List[str]:
-    """Every wallet the store actually holds data for (S6: the summary
+    """Every wallet the store actually holds data for (the summary
     page must show what exists, not only what is currently watched)."""
     rows = conn.execute(
         "SELECT DISTINCT wallet FROM portfolio_snapshots "

@@ -1,6 +1,6 @@
 """Concentrated-liquidity math: ticks, impermanent loss, net yield, range.
 
-S8 cleanup: the RPC fetch helpers and mock-era stubs are gone (position
+The RPC fetch helpers and mock-era stubs are gone (position
 ingestion lives in services/orca_client.py; receipts in engines/slippage).
 What remains is pure, tested math used by risk/metrics and risk/alerts.
 """

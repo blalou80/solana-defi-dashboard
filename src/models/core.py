@@ -37,7 +37,7 @@ class Portfolio:
     token_exposures: Dict[str, float] = field(default_factory=dict)
     # None = not enough real history to compute; never a fabricated number.
     # "intraday" metrics come from raw snapshot returns (seconds apart);
-    # "daily" metrics from end-of-day rollups (see METRICS.md, S3).
+    # "daily" metrics from end-of-day rollups (see METRICS.md).
     var_95: Optional[float] = None
     sharpe_ratio: Optional[float] = None
     var_95_daily: Optional[float] = None
@@ -56,4 +56,4 @@ class Alert:
     message_template: str
     enabled: bool = True
     threshold_symbol: Optional[str] = None  # e.g. "SOL" for stop_loss
-    wallet: Optional[str] = None  # S4 scope: None = all watched wallets
+    wallet: Optional[str] = None  # scope: None = all watched wallets
