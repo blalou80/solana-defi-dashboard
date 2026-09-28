@@ -114,11 +114,11 @@ if rows:
     _render(rows)
 else:
     st.warning(
-        "**Live verification pending (sprint S5):** this ingestion path has "
-        "not yet been exercised end-to-end against a wallet that actually "
-        "holds Orca CL positions — RPC rate limits blocked discovery. "
-        "Parser tests run against the real API envelope, but treat the "
-        "first non-empty render as unverified until reviewed. Wallets "
-        "without CL positions legitimately show nothing here; no mock "
-        "positions are ever displayed."
+        "**Live verification pending:** this ingestion path has not yet "
+        "been exercised end-to-end against a wallet that actually holds "
+        "Orca CL positions (public-RPC rate limits blocked discovery). "
+        "Parser tests run against the real API envelope; the first "
+        "non-empty render should be reviewed. Wallets without CL positions "
+        "legitimately show nothing here; no mock positions are ever "
+        "displayed."
     )
